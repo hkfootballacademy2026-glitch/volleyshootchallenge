@@ -1,2 +1,22 @@
-# volleyshootchallenge
-volleyshootchallenge
+# ボレーシュートチャレンジ
+
+カメラの前に立って、飛んでくるボールを実際に足で蹴るAIサッカートレーニングゲームです。
+
+## 遊び方
+
+1. スマホをスタンドや台に立てかけて固定する
+2. `https://[あなたのID].github.io/[リポジトリ名]/` をスマホで開く
+3. カメラを許可 → 2〜3歩下がって全身が映るようにする
+4. 飛んでくるボールを足を振って蹴る！
+
+## GitHub Pages の設定方法
+
+1. このリポジトリの **Settings → Pages**
+2. Source: **Deploy from a branch**
+3. Branch: **main** / フォルダ: **/ (root)**
+4. **Save** → 数分後に公開される
+
+## 技術
+
+- MediaPipe PoseLandmarker（端末内AI・映像は外部送信なし）
+- 単一HTMLファイル・ビルド不要
