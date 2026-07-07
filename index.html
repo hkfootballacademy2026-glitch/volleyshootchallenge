@@ -298,10 +298,8 @@
 
   <!-- リプレイ再生オーバーレイ -->
   <div id="replay-overlay" class="screen hidden" style="z-index: 30;">
-    <div class="eyebrow">REPLAY — スロー再生</div>
-    <img id="replay-img" alt="リプレイ" style="width: min(88vw, 480px); border-radius: 16px; border: 2px solid rgba(35,224,255,0.5); box-shadow: 0 0 30px rgba(35,224,255,0.25);" />
-    <div class="subtitle" id="replay-label"></div>
-    <button class="btn ghost" id="replay-next-btn">次のリプレイ</button>
+    <div class="eyebrow">REPLAY — 1プレイまるごと</div>
+    <video id="replay-video" controls playsinline loop style="width: min(88vw, 440px); max-height: 62vh; border-radius: 16px; border: 2px solid rgba(35,224,255,0.5); box-shadow: 0 0 30px rgba(35,224,255,0.25); background:#000;"></video>
     <button class="btn" id="replay-close-btn">閉じる</button>
   </div>
 
@@ -326,7 +324,7 @@
       <div><b>2.</b> 2〜3歩下がって、<b>足元まで全身</b>が映るようにする</div>
       <div><b>3.</b> ボールは<b>足を振って蹴る</b>!触れるだけでは無得点、速く振ると <b>PERFECT</b> で1.5倍</div>
       <div><b>※</b> 正面から来るボールは<b>「蹴りどき!」の光るリング</b>が出た瞬間に蹴ろう</div>
-      <div><b>※</b> ゴールターゲットは<b>ボールのどこを叩くかで方向が決まる</b>。下を叩けば浮き、左下を叩けば右上へ。つま先寄り=インステップ(威力)、中央寄り=インサイド(精度)</div>
+      <div><b>※</b> ゴールターゲットは<b>ボールのどこを叩くかで方向が決まる</b>。下を叩けば浮き、左下を叩けば右上へ</div>
       <div><b>4.</b> <b style="color:#FF4757">黒ボールは蹴るな!</b> 蹴ると減点、我慢してスルーすればボーナス(静止して当たるのはセーフ)</div>
       <div><b>※</b> iPad・PCは<b>横画面</b>推奨/スマホは縦でもOK</div>
     </div>
@@ -358,6 +356,7 @@
       <div class="stat-box"><div class="s-label">平均反応</div><div class="s-value" id="r-react">-</div></div>
     </div>
     <button class="btn ghost hidden" id="replay-view-btn">リプレイを見る</button>
+    <a class="btn ghost hidden" id="replay-save-btn" style="text-decoration:none; display:inline-block;">録画を端末に保存</a>
     <button class="btn" id="replay-btn">もう一度プレイ</button>
     <button class="btn ghost" id="share-btn">結果をシェア</button>
     <button class="btn ghost" id="home-btn">ホームに戻る</button>
@@ -502,14 +501,13 @@ let timeRemaining = 60;
 let timerHandle = null;
 let positioningStableSince = 0;
 let lastResultSummary = null;
-// リプレイ(直近映像のリングバッファ → 名場面をクリップ保存)
-let replayBuf = [];      // {t, url}
-let replayClips = [];    // {frames[], pts, label}
-let pendingClips = [];   // {startT, endT, pts, label}
-let lastCaptureAt = 0;
-let replayTimer = null;
-let replayClipIdx = 0;
-const capCanvas = document.createElement("canvas");
+// リプレイ(1プレイ全体を動画として録画: カメラ+ゲーム画面の合成)
+let mediaRecorder = null;
+let recChunks = [];
+let recBlobUrl = null;
+let recMime = "";
+const recCanvas = document.createElement("canvas");
+let recCtx = null;
 let rafHandle = null;
 let lastFrameTs = 0;
 
@@ -975,7 +973,9 @@ function updateBalls(dt, nowMs) {
         // 黒ボールは判定を狭く(明確に蹴った時だけ)
         const radiusMul = b.type === "BLACK" ? 0.6 : 1;
         if (dist <= cfg.hitRadius * DPR() * radiusMul + b.radius) {
-          const swinging = (f.speed || 0) >= KICK_MIN_SPEED * DPR();
+          // 正面ボレーは足が奥行き方向に動き画面上の移動量が小さくなるため閾値を緩和
+          const frontRelief = b.kind === "FRONT" ? 0.45 : 1;
+          const swinging = (f.speed || 0) >= KICK_MIN_SPEED * DPR() * frontRelief;
           if (b.type === "BLACK") {
             if (swinging) onBlackHit(b, nowMs); // 蹴ってしまった=減点
             else onBlackSafe(b, nowMs);         // 静止して触れただけ=セーフ
@@ -1038,7 +1038,6 @@ function resolveShot(ball, nowMs, geom) {
     if (ball.shotPerfect) perfectCount++;
     lastHitAt = nowMs;
     rerollTarget();
-    queueReplayClip(nowMs, pts, `ゴール!! +${pts} (${TOUCH_TYPES[ball.meetType] ? TOUCH_TYPES[ball.meetType].label : "キック"})`);
     spawnBurst(ball.x, ball.y, "#FFC53D", 30);
     popups.push({ x: ball.x, y: ball.y + 30, text: `+${pts}`, sub: "ゴール!!", born: nowMs, life: 1100, color: "#FFC53D" });
     playComboSound(Math.max(2, combo));
@@ -1126,14 +1125,14 @@ function onKick(ball, foot, nowMs, side) {
     reactionTimes.push(Math.max(0, nowMs - ball.ringAt));
   }
   if (gameMode === "TARGET") {
-    const perfect = (foot.speed || 0) >= PERFECT_FOOT_SPEED * DPR();
+    const perfect = (foot.speed || 0) >= PERFECT_FOOT_SPEED * DPR() * (ball.kind === "FRONT" ? 0.6 : 1);
     ball.kicked = true;
     ball.active = false;
     ball.shotPending = true;
     ball.shotPerfect = perfect;
 
-    // ---- タッチ部位の判定(6分類) ----
-    const touch = classifyTouch(ball, foot, side);
+    // タッチ部位の効果は精度限界のため無効化(classifyTouchは将来のネイティブ版用に休眠)
+    const touch = { key: "NEUTRAL", def: { power: 1.0, curve: 0, wContact: 0.58, wSwing: 0.27 }, medialSignX: 1 };
 
     // ---- 方向決定: 3要素のブレンド ----
     const norm = (x, y) => {
@@ -1162,7 +1161,7 @@ function onKick(ball, foot, nowMs, side) {
     const dir = norm(dx * 1000, dy * 1000) || swingN || { x: 0, y: -1 };
 
     // ---- 威力: スイング速度への比例を強化(弱く振れば弱い球) ----
-    const mag = Math.max(1, foot.speed || 0);
+    const mag = Math.max(1, (foot.speed || 0) * (ball.kind === "FRONT" ? 1.6 : 1));
     const shotSpeed = (900 + Math.min(2600, mag * 1.1)) * DPR() / 2 * touch.def.power;
     ball.kickedVx = dir.x * shotSpeed * 0.75; // 横は少しだけ寛容に
     ball.kickedVy = dir.y * shotSpeed;
@@ -1175,20 +1174,13 @@ function onKick(ball, foot, nowMs, side) {
       ball.shotGrounded = true;
     }
     ball.meetType = touch.key;
-    popups.push({
-      x: ball.x, y: ball.y + 34,
-      text: touch.def.label,
-      sub: touch.def.curve !== 0 ? "カーブ!" : "",
-      born: nowMs, life: 750,
-      color: touch.def.color,
-    });
     spawnBurst(ball.x, ball.y, "#F5F8FF", 14);
     playKickSound(perfect);
     vibrate(perfect ? [40, 30, 60] : 35);
     hitsVal.textContent = String(hits);
     return;
   }
-  const perfect = (foot.speed || 0) >= PERFECT_FOOT_SPEED * DPR();
+  const perfect = (foot.speed || 0) >= PERFECT_FOOT_SPEED * DPR() * (ball.kind === "FRONT" ? 0.6 : 1);
   const base = BALL_TYPE[ball.type].points;
   const comboBonus = combo * 5;
   const pts = Math.round(base * cfg.multiplier * (perfect ? 1.5 : 1) + comboBonus);
@@ -1206,7 +1198,6 @@ function onKick(ball, foot, nowMs, side) {
   ball.kickedVx = dir * (500 + Math.random() * 400) * DPR();
   ball.kickedVy = -(1400 + Math.random() * 500) * DPR();
 
-  if (perfect) queueReplayClip(nowMs, pts, `PERFECT! +${pts}`);
   spawnBurst(ball.x, ball.y, BALL_TYPE[ball.type].color, perfect ? 26 : 16);
   popups.push({
     x: ball.x, y: ball.y - 20,
@@ -1524,58 +1515,78 @@ function drawAllParts(nowMs) {
   }
 }
 
-/* ---------------- リプレイ ---------------- */
-function captureReplayFrame(nowMs) {
-  if (phase !== "playing" || video.readyState < 2) return;
-  if (nowMs - lastCaptureAt < 110) return;
-  lastCaptureAt = nowMs;
-  const vw = video.videoWidth, vh = video.videoHeight;
-  if (!vw || !vh) return;
-  const cw = 320, ch = Math.round((320 * vh) / vw);
-  if (capCanvas.width !== cw) { capCanvas.width = cw; capCanvas.height = ch; }
-  const c = capCanvas.getContext("2d");
-  if (mirrored) { c.save(); c.scale(-1, 1); c.drawImage(video, -cw, 0, cw, ch); c.restore(); }
-  else c.drawImage(video, 0, 0, cw, ch);
-  try {
-    replayBuf.push({ t: nowMs, url: capCanvas.toDataURL("image/jpeg", 0.55) });
-  } catch {}
-  while (replayBuf.length > 30) replayBuf.shift();
-  finalizePendingClips(nowMs, false);
+/* ---------------- リプレイ(1プレイ全録画) ---------------- */
+function recorderSupported() {
+  return typeof MediaRecorder !== "undefined" && recCanvas.captureStream;
 }
-function finalizePendingClips(nowMs, force) {
-  for (let i = pendingClips.length - 1; i >= 0; i--) {
-    const p = pendingClips[i];
-    if (force || nowMs >= p.endT) {
-      const frames = replayBuf.filter((f) => f.t >= p.startT && f.t <= p.endT).map((f) => f.url);
-      if (frames.length >= 4) {
-        replayClips.push({ frames, pts: p.pts, label: p.label });
-        replayClips.sort((a, b) => b.pts - a.pts);
-        if (replayClips.length > 3) replayClips.length = 3;
-      }
-      pendingClips.splice(i, 1);
-    }
+function pickRecMime() {
+  const candidates = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"];
+  for (const m of candidates) {
+    try { if (MediaRecorder.isTypeSupported(m)) return m; } catch {}
   }
+  return "";
 }
-function queueReplayClip(nowMs, pts, label) {
-  pendingClips.push({ startT: nowMs - 1100, endT: nowMs + 650, pts, label });
+function startRecording() {
+  if (!recorderSupported()) return;
+  try {
+    // 縦横比は画面に合わせ、幅480pxで軽量に録画
+    const aspect = window.innerHeight / window.innerWidth;
+    recCanvas.width = 480;
+    recCanvas.height = Math.min(1040, Math.round(480 * aspect));
+    recCtx = recCanvas.getContext("2d");
+    if (recBlobUrl) { URL.revokeObjectURL(recBlobUrl); recBlobUrl = null; }
+    recChunks = [];
+    recMime = pickRecMime();
+    const stream = recCanvas.captureStream(30);
+    mediaRecorder = new MediaRecorder(stream, recMime ? { mimeType: recMime, videoBitsPerSecond: 2500000 } : undefined);
+    mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) recChunks.push(e.data); };
+    mediaRecorder.start(1000);
+  } catch (e) { console.warn("録画を開始できませんでした", e); mediaRecorder = null; }
 }
-function openReplay(idx) {
-  if (replayClips.length === 0) return;
-  replayClipIdx = ((idx % replayClips.length) + replayClips.length) % replayClips.length;
-  const clip = replayClips[replayClipIdx];
+function stopRecording(onReady) {
+  if (!mediaRecorder) { onReady && onReady(false); return; }
+  const mr = mediaRecorder;
+  mediaRecorder = null;
+  mr.onstop = () => {
+    try {
+      const blob = new Blob(recChunks, { type: recMime || "video/webm" });
+      if (blob.size > 0) {
+        recBlobUrl = URL.createObjectURL(blob);
+        onReady && onReady(true);
+        return;
+      }
+    } catch {}
+    onReady && onReady(false);
+  };
+  try { mr.stop(); } catch { onReady && onReady(false); }
+}
+function drawRecordingFrame() {
+  if (!recCtx || !mediaRecorder) return;
+  const rw = recCanvas.width, rh = recCanvas.height;
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (vw && vh) {
+    const sc = Math.max(rw / vw, rh / vh);
+    const dw = vw * sc, dh = vh * sc;
+    const ox = (rw - dw) / 2, oy = (rh - dh) / 2;
+    if (mirrored) { recCtx.save(); recCtx.scale(-1, 1); recCtx.drawImage(video, -(ox + dw), oy, dw, dh); recCtx.restore(); }
+    else recCtx.drawImage(video, ox, oy, dw, dh);
+  } else {
+    recCtx.fillStyle = "#000"; recCtx.fillRect(0, 0, rw, rh);
+  }
+  // ゲーム画面(ボール・マーカー・エフェクト)を重ねる
+  recCtx.drawImage(canvas, 0, 0, rw, rh);
+}
+function openReplay() {
+  if (!recBlobUrl) return;
   show($("replay-overlay"));
-  $("replay-label").textContent = `${replayClipIdx + 1}/${replayClips.length}  ${clip.label}`;
-  let frame = 0;
-  if (replayTimer) clearInterval(replayTimer);
-  const img = $("replay-img");
-  img.src = clip.frames[0];
-  replayTimer = setInterval(() => {
-    frame = (frame + 1) % clip.frames.length;
-    img.src = clip.frames[frame]; // 約0.65倍速スロー再生
-  }, 170);
+  const v = $("replay-video");
+  v.src = recBlobUrl;
+  v.currentTime = 0;
+  v.play().catch(() => {});
 }
 function closeReplay() {
-  if (replayTimer) { clearInterval(replayTimer); replayTimer = null; }
+  const v = $("replay-video");
+  try { v.pause(); } catch {}
   hide($("replay-overlay"));
 }
 
@@ -1631,7 +1642,7 @@ function beginPlay() {
   leftHits = 0; rightHits = 0; reactionTimes = [];
   goalOnTarget = 0; goalFrameIn = 0;
   rerollTarget();
-  replayBuf = []; replayClips = []; pendingClips = []; lastCaptureAt = 0;
+  startRecording();
   balls = []; particles = []; popups = [];
   timeRemaining = cfg.timeLimit;
   lastSpawn = performance.now() - cfg.spawnInterval + 600; // 最初のボールは0.6秒後
@@ -1652,7 +1663,6 @@ function beginPlay() {
 }
 function endGame() {
   if (timerHandle) { clearInterval(timerHandle); timerHandle = null; }
-  finalizePendingClips(performance.now(), true);
   phase = "result";
   playWhistle();
   vibrate([80, 60, 80]);
@@ -1691,13 +1701,23 @@ function endGame() {
     hide($("newrecord"));
   }
   const rb = $("replay-view-btn");
-  if (replayClips.length > 0) { rb.classList.remove("hidden"); rb.textContent = `リプレイを見る (${replayClips.length})`; }
-  else rb.classList.add("hidden");
+  const sb = $("replay-save-btn");
+  rb.classList.add("hidden"); sb.classList.add("hidden");
+  stopRecording((ok) => {
+    if (!ok) return;
+    rb.classList.remove("hidden");
+    const ext = (recMime || "").includes("mp4") ? "mp4" : "webm";
+    const d = new Date();
+    sb.setAttribute("href", recBlobUrl);
+    sb.setAttribute("download", `volleyshoot_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}_${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}.${ext}`);
+    sb.classList.remove("hidden");
+  });
   setScreen("result");
 }
 function backToHome() {
   closeReplay();
-  replayBuf = []; replayClips = []; pendingClips = [];
+  stopRecording();
+  if (recBlobUrl) { URL.revokeObjectURL(recBlobUrl); recBlobUrl = null; }
   if (timerHandle) { clearInterval(timerHandle); timerHandle = null; }
   phase = "start";
   balls = []; particles = []; popups = [];
@@ -1768,7 +1788,6 @@ function loop(nowMs) {
     handlePositioning(nowMs);
   }
   if (phase === "playing") {
-    captureReplayFrame(nowMs);
     spawnBall(nowMs);
     if (combo > 0 && nowMs - lastHitAt > COMBO_TIMEOUT) {
       combo = 0;
@@ -1791,6 +1810,7 @@ function loop(nowMs) {
   }
   drawParticles();
   drawPopups(nowMs);
+  if (phase === "playing") drawRecordingFrame();
 }
 rafHandle = requestAnimationFrame(loop);
 
@@ -1836,8 +1856,7 @@ $("replay-btn").addEventListener("click", async () => {
   show(flipBtn); show(quitBtn);
 });
 $("home-btn").addEventListener("click", backToHome);
-$("replay-view-btn").addEventListener("click", () => openReplay(0));
-$("replay-next-btn").addEventListener("click", () => openReplay(replayClipIdx + 1));
+$("replay-view-btn").addEventListener("click", openReplay);
 $("replay-close-btn").addEventListener("click", closeReplay);
 $("share-btn").addEventListener("click", async () => {
   const text = lastResultSummary || "⚽ボレーシュートチャレンジ";
