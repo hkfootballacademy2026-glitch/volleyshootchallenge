@@ -317,7 +317,7 @@
       <div><b>2.</b> 2〜3歩下がって、<b>足元まで全身</b>が映るようにする</div>
       <div><b>3.</b> ボールは<b>足を振って蹴る</b>!触れるだけでは無得点、速く振ると <b>PERFECT</b> で1.5倍</div>
       <div><b>※</b> 正面から来るボールは<b>「蹴りどき!」の光るリング</b>が出た瞬間に蹴ろう</div>
-      <div><b>※</b> ゴールターゲットは<b>足を振った方向にボールが飛ぶ</b>。赤く光る的に向けて振り抜こう(ハードは6分割)</div>
+      <div><b>※</b> ゴールターゲットは<b>ボールのどこを叩くかで方向が決まる</b>。下を叩けば浮き、左下を叩けば右上へ。つま先寄り=インステップ(威力)、中央寄り=インサイド(精度)</div>
       <div><b>4.</b> <b style="color:#FF4757">黒ボールは蹴るな!</b> 蹴ると減点、我慢してスルーすればボーナス(静止して当たるのはセーフ)</div>
       <div><b>※</b> iPad・PCは<b>横画面</b>推奨/スマホは縦でもOK</div>
     </div>
@@ -691,6 +691,9 @@ function updatePose(nowMs) {
   // 各部位の打点を計算
   const footL = footPoint(lms, LM.L_ANKLE, LM.L_FOOT, LM.L_HEEL);
   const footR = footPoint(lms, LM.R_ANKLE, LM.R_FOOT, LM.R_HEEL);
+  // かかと→つま先の軸(ミート部位の判定に使用)
+  if (footL) footL.axis = { heel: singleScreen(lms, LM.L_HEEL), toe: singleScreen(lms, LM.L_FOOT) };
+  if (footR) footR.axis = { heel: singleScreen(lms, LM.R_HEEL), toe: singleScreen(lms, LM.R_FOOT) };
   const head = singleScreen(lms, LM.NOSE);              // 鼻=額の代表点
   const shoulderL = singleScreen(lms, 11);
   const shoulderR = singleScreen(lms, 12);
@@ -849,6 +852,7 @@ function updateBalls(dt, nowMs) {
       continue;
     }
     if (b.kind === "FRONT") {
+      const px = b.x, py = b.y;
       const wasKickable = b.p >= FRONT_KICK_MIN_P;
       b.p += dt / b.flightTime;
       if (!wasKickable && b.p >= FRONT_KICK_MIN_P && !b.ringAt) b.ringAt = nowMs;
@@ -859,6 +863,8 @@ function updateBalls(dt, nowMs) {
       // 奥行き: 近づくほど大きく
       b.radius = b.fullRadius * (0.32 + 0.68 * easeInQuad(pc));
       b.spin += dt * 5;
+      b.instVx = (b.x - px) / dt;
+      b.instVy = (b.y - py) / dt;
       // 通り過ぎたらフェードアウト
       if (b.p > FRONT_KICK_MAX_P) {
         b.fade = Math.max(0, 1 - (b.p - FRONT_KICK_MAX_P) / 0.25);
@@ -1064,23 +1070,69 @@ function onKick(ball, foot, nowMs, side) {
     reactionTimes.push(Math.max(0, nowMs - ball.ringAt));
   }
   if (gameMode === "TARGET") {
-    // 足の振りベクトルがそのままシュート方向になる
     const perfect = (foot.speed || 0) >= PERFECT_FOOT_SPEED * DPR();
     ball.kicked = true;
     ball.active = false;
     ball.shotPending = true;
     ball.shotPerfect = perfect;
-    const vx = foot.velX || 0, vy = foot.velY || 0;
-    const mag = Math.max(1, Math.hypot(vx, vy));
-    const shotSpeed = (2000 + Math.min(2200, mag)) * DPR() / 2;
-    // 上方向成分が弱い(叩きつけ気味)と失速して届かない=リアルなミス
-    // 横方向は0.55倍に減衰(スイングの横ブレに寛容にして狙いやすく)
-    ball.kickedVx = (vx / mag) * shotSpeed * 0.55;
-    ball.kickedVy = (vy / mag) * shotSpeed;
+
+    // ---- ミート部位の判定(かかと→つま先軸への射影) ----
+    // つま先寄り=インステップ(威力), 足の中央寄り=インサイド(精度)
+    let meetType = "INSTEP";
+    const ax = foot.axis;
+    if (ax && ax.heel && ax.toe) {
+      const ex = ax.toe.x - ax.heel.x, ey = ax.toe.y - ax.heel.y;
+      const len2 = ex * ex + ey * ey;
+      if (len2 > 1) {
+        const t = ((ball.x - ax.heel.x) * ex + (ball.y - ax.heel.y) * ey) / len2;
+        meetType = t >= 0.55 ? "INSTEP" : "INSIDE";
+      }
+    }
+
+    // ---- 方向決定: 3要素のブレンド ----
+    const norm = (x, y) => {
+      const m = Math.hypot(x, y);
+      return m > 1 ? { x: x / m, y: y / m } : null;
+    };
+    // (1) ミートポイント: 接触点からボールの芯を突き抜ける方向(最重要)
+    const contactN = norm(ball.x - foot.x, ball.y - foot.y);
+    // (2) スイング方向
+    const swingN = norm(foot.velX || 0, foot.velY || 0);
+    // (3) 入射の反射: 飛んできた勢いがミート面で跳ね返る成分
+    const inVx = ball.kind === "FRONT" ? (ball.instVx || 0) : ball.vx;
+    const inVy = ball.kind === "FRONT" ? (ball.instVy || 0) : ball.vy;
+    let reflectN = null;
+    if (contactN) {
+      const dot = inVx * contactN.x + inVy * contactN.y;
+      reflectN = norm(inVx - 2 * dot * contactN.x, inVy - 2 * dot * contactN.y);
+    }
+    // インサイドはミートポイントへの忠実度が高い(=コントロールショット)
+    const wContact = meetType === "INSIDE" ? 0.65 : 0.55;
+    const wSwing   = meetType === "INSIDE" ? 0.22 : 0.30;
+    const wReflect = 0.15;
+    let dx = 0, dy = 0;
+    if (contactN) { dx += contactN.x * wContact; dy += contactN.y * wContact; }
+    if (swingN)   { dx += swingN.x * wSwing;     dy += swingN.y * wSwing; }
+    if (reflectN) { dx += reflectN.x * wReflect; dy += reflectN.y * wReflect; }
+    const dir = norm(dx * 1000, dy * 1000) || swingN || { x: 0, y: -1 };
+
+    // ---- 威力: スイング速度 × ミート部位倍率 ----
+    const mag = Math.max(1, foot.speed || 0);
+    const meetPower = meetType === "INSTEP" ? 1.12 : 0.85;
+    const shotSpeed = (2000 + Math.min(2200, mag)) * DPR() / 2 * meetPower;
+    ball.kickedVx = dir.x * shotSpeed * 0.75; // 横は少しだけ寛容に
+    ball.kickedVy = dir.y * shotSpeed;
     if (ball.kickedVy > -200 * DPR()) {
-      ball.kickedVy = 300 * DPR(); // 上に蹴れていない→ゴールに届かず下へ
+      ball.kickedVy = 300 * DPR(); // ボールの上を叩いた/振り上げ不足→届かない
       ball.shotGrounded = true;
     }
+    ball.meetType = meetType;
+    popups.push({
+      x: ball.x, y: ball.y + 34,
+      text: meetType === "INSIDE" ? "インサイド" : "インステップ",
+      sub: "", born: nowMs, life: 700,
+      color: meetType === "INSIDE" ? "#23E0FF" : "#FFC53D",
+    });
     spawnBurst(ball.x, ball.y, "#F5F8FF", 14);
     playKickSound(perfect);
     vibrate(perfect ? [40, 30, 60] : 35);
