@@ -5,7 +5,7 @@
 ## 遊び方
 
 1. スマホをスタンドや台に立てかけて固定する
-2．https://hkfootballacademy2026-glitch.github.io/volleyshootchallenge　をスマホで開く
+2．https://hkfootballacademy2026-glitch.github.io/volleyshootchallenge
 3. カメラを許可 → 2〜3歩下がって全身が映るようにする
 4. 飛んでくるボールを足を振って蹴る！
 
