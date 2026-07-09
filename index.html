@@ -401,7 +401,7 @@
       <div class="mode-card" data-mode="TARGET">
         <div class="mc-icon">🎯</div>
         <div class="mc-title">ゴールターゲット</div>
-        <div class="mc-desc">光ったコースを狙って蹴り分ける、シュート精度のトレーニング</div>
+        <div class="mc-desc">キーパーをかわして空いたコースへ蹴り込む、シュート精度のトレーニング</div>
       </div>
     </div>
     <div class="howto" style="max-width:420px;">
@@ -603,18 +603,24 @@ let score = 0, hits = 0, totalBalls = 0, combo = 0, maxCombo = 0, perfectCount =
 let leftHits = 0, rightHits = 0;
 let reactionTimes = []; // 正面ボール: 蹴りどき点灯→キックまでのms
 // ゴールターゲットモード
-let targetZone = 0;      // 現在赤く光っているゾーン index
+let targetZone = 0;      // キーパーが立っているゾーン index (左0/中央1/右2)
+let keeperCatchAt = 0;   // セーブ演出用タイムスタンプ
 let goalOnTarget = 0;    // ターゲット的中数
 let goalFrameIn = 0;     // 枠内(ゾーン違い)数
 function goalGeometry() {
+  // 画面下・後ろ向きのゴール(カメラの手前にゴールがあり、プレイヤーはこちらへ蹴り込む)
   const w = canvas.width, h = canvas.height;
-  const gx = w * 0.12, gw = w * 0.76;
-  // 実物のゴール比率(7.32m×2.44m=3:1)に寄せる
-  const gh = Math.min(h * 0.16, gw / 3.2);
-  const gy = h * 0.05;
+  const gw = w * 0.6;                       // ゴールマウス(奥側=プレイヤーに向いた開口部)
+  const gx = (w - gw) / 2;
+  const gh = Math.min(h * 0.09, gw / 3.2);  // マウスの高さ(実物比 3:1)
+  const gy = h * 0.86 - gh;                 // マウス上辺
   const cols = 3; // 左・中央・右
   const rows = 1;
-  return { gx, gy, gw, gh, cols, rows };
+  // 手前側(カメラ側)の背面フレームはマウスより大きく画面下端寄り(遠近)
+  const bw = w * 0.88;
+  const bx = (w - bw) / 2;
+  const by = h * 0.995;
+  return { gx, gy, gw, gh, cols, rows, bx, by, bw };
 }
 function rerollTarget() {
   const { cols, rows } = goalGeometry();
@@ -1062,22 +1068,31 @@ function updateBalls(dt, nowMs) {
   for (const b of balls) {
     if (b.kicked) {
       if (gameMode === "TARGET" && b.shotPending) {
-        b.kickedVy += g * 0.35 * dt;              // シュートも弧を描く
-        if (b.curveAx) b.kickedVx += b.curveAx * dt; // カーブ回転
+        // カメラ手前のゴールへ向かう遠近シュート: 進行度でアニメーション
+        b.shotP = (b.shotP || 0) + dt / (b.shotTime || 0.55);
+        const p = Math.min(1, b.shotP);
+        const ease = p * p * (3 - 2 * p); // smoothstep
+        b.x = b.shotFromX + (b.shotToX - b.shotFromX) * ease;
+        // 少し浮いてからゴールへ沈む弾道
+        b.y = b.shotFromY + (b.shotToY - b.shotFromY) * ease - Math.sin(p * Math.PI) * 60 * DPR();
+        b.radius = b.shotBaseR * (1 + 1.1 * ease); // 近づくほど大きく(遠近)
+        b.spin += dt * 20;
+        if (b.shotP >= 1) {
+          b.shotPending = false;
+          b.shotDone = true;
+          resolveShot(b, nowMs, goalGeometry());
+        }
+        continue;
       }
-      const prevY = b.y;
+      if (b.shotDone) {
+        // 判定後はネットに収まりつつフェードアウト
+        b.fade = Math.max(0, (b.fade ?? 1) - dt * 2.4);
+        b.spin += dt * 6;
+        continue;
+      }
       b.x += b.kickedVx * dt;
       b.y += b.kickedVy * dt;
       b.spin += dt * 25;
-      // ゴールターゲット: ゴールライン(枠の下辺)を上向きに横切った瞬間に判定
-      if (gameMode === "TARGET" && b.shotPending && !b.shotGrounded) {
-        const geom = goalGeometry();
-        const lineY = geom.gy + geom.gh;
-        if (prevY > lineY && b.y <= lineY) {
-          b.shotPending = false;
-          resolveShot(b, nowMs, geom);
-        }
-      }
       continue;
     }
     if (b.kind === "FRONT") {
@@ -1108,12 +1123,11 @@ function updateBalls(dt, nowMs) {
   }
   // 画面外に出たボールを除去(未キックはミス扱い→コンボ切れ)
   balls = balls.filter((b) => {
-    const out = b.kind === "FRONT" && !b.kicked
+    const out = b.shotDone
       ? b.fade <= 0
-      : (b.x < -140 || b.x > w + 140 || b.y > h + 140 || b.y < -240);
-    if (out && gameMode === "TARGET" && b.kicked && b.shotPending && phase === "playing") {
-      onShotMiss(b, nowMs, b.shotGrounded ? "浮かせよう!" : "枠外!");
-    }
+      : b.kind === "FRONT" && !b.kicked
+        ? b.fade <= 0
+        : (b.x < -140 || b.x > w + 140 || b.y > h + 140 || b.y < -240);
     if (out && b.active && !b.kicked && phase === "playing") {
       if (b.type === "BLACK") {
         // 我慢の成功に小さな報酬
@@ -1193,35 +1207,42 @@ function updateBalls(dt, nowMs) {
 }
 function resolveShot(ball, nowMs, geom) {
   const cfg = DIFFICULTY[difficulty];
-  // ライン横断時のx座標の列だけで判定(左・中央・右)
+  // 着弾X座標の列で判定(左・中央・右)。targetZone = キーパーが立つゾーン
   const col = zoneAt(ball.x, geom);
   if (col < 0) {
-    onShotMiss(ball, nowMs, "枠外!");
+    combo = 0;
+    updateComboBanner();
+    popups.push({ x: Math.max(60, Math.min(canvas.width - 60, ball.x)), y: geom.gy - 30, text: "0", sub: "枠外!", born: nowMs, life: 900, color: "#9AA3B8" });
+    playBeep(240, 0.12, 0.15);
     return;
   }
-  const zone = col;
-  const onTarget = zone === targetZone;
-  const base = onTarget ? 30 : 10;
-  const comboBonus = onTarget ? combo * 5 : 0;
-  const pts = Math.round(base * cfg.multiplier * (ball.shotPerfect ? 1.5 : 1) + comboBonus);
-  score += pts;
-  if (onTarget) {
-    hits++; goalOnTarget++;
-    combo++; maxCombo = Math.max(maxCombo, combo);
-    if (ball.shotPerfect) perfectCount++;
-    lastHitAt = nowMs;
-    rerollTarget();
-    spawnBurst(ball.x, ball.y, "#FFC53D", 30);
-    popups.push({ x: ball.x, y: ball.y + 30, text: `+${pts}`, sub: "ゴール!!", born: nowMs, life: 1100, color: "#FFC53D" });
-    playComboSound(Math.max(2, combo));
-    vibrate([50, 30, 80]);
-  } else {
+  if (col === targetZone) {
+    // キーパー正面 → セーブされた
     goalFrameIn++;
     combo = 0;
-    spawnBurst(ball.x, ball.y, "#3B9CFF", 14);
-    popups.push({ x: ball.x, y: ball.y + 30, text: `+${pts}`, sub: "枠内", born: nowMs, life: 900, color: "#3B9CFF" });
-    playBeep(660, 0.1, 0.15);
+    updateComboBanner();
+    keeperCatchAt = nowMs;
+    spawnBurst(ball.x, ball.y, "#3B9CFF", 16);
+    popups.push({ x: ball.x, y: geom.gy - 30, text: "0", sub: "セーブされた!", born: nowMs, life: 1000, color: "#3B9CFF" });
+    playBeep(300, 0.16, 0.18);
+    vibrate(40);
+    rerollTarget(); // セーブ後もキーパーは移動する
+    return;
   }
+  // キーパーのいないコース → ゴール!!
+  const base = 30;
+  const comboBonus = combo * 5;
+  const pts = Math.round(base * cfg.multiplier * (ball.shotPerfect ? 1.5 : 1) + comboBonus);
+  score += pts;
+  hits++; goalOnTarget++;
+  combo++; maxCombo = Math.max(maxCombo, combo);
+  if (ball.shotPerfect) perfectCount++;
+  lastHitAt = nowMs;
+  rerollTarget(); // ゴール後キーパーは新しいコースへ移動
+  spawnBurst(ball.x, ball.y, "#FFC53D", 30);
+  popups.push({ x: ball.x, y: geom.gy - 30, text: `+${pts}`, sub: ball.shotPerfect ? "ゴール!! PERFECT" : "ゴール!!", born: nowMs, life: 1100, color: "#FFC53D" });
+  playComboSound(Math.max(2, combo));
+  vibrate([50, 30, 80]);
   updateComboBanner();
   scoreVal.textContent = String(score);
   hitsVal.textContent = String(hits);
@@ -1304,19 +1325,13 @@ function onKick(ball, foot, nowMs, side) {
     ball.shotPending = true;
     ball.shotPerfect = perfect;
 
-    // タッチ部位の効果は精度限界のため無効化(classifyTouchは将来のネイティブ版用に休眠)
-    const touch = { key: "NEUTRAL", def: { power: 1.0, curve: 0, wContact: 0.58, wSwing: 0.27 }, medialSignX: 1 };
-
-    // ---- 方向決定: 3要素のブレンド ----
+    // ---- 狙い(左右)の決定: ミートポイント+スイング+入射反射の横成分 ----
     const norm = (x, y) => {
       const m = Math.hypot(x, y);
       return m > 1 ? { x: x / m, y: y / m } : null;
     };
-    // (1) ミートポイント: 接触点からボールの芯を突き抜ける方向(最重要)
-    const contactN = norm(ball.x - foot.x, ball.y - foot.y);
-    // (2) スイング方向
+    const contactN = norm(ball.x - foot.x, ball.y - foot.y); // ボールの右側を叩けば左へ
     const swingN = norm(foot.velX || 0, foot.velY || 0);
-    // (3) 入射の反射: 飛んできた勢いがミート面で跳ね返る成分
     const inVx = ball.kind === "FRONT" ? (ball.instVx || 0) : ball.vx;
     const inVy = ball.kind === "FRONT" ? (ball.instVy || 0) : ball.vy;
     let reflectN = null;
@@ -1324,29 +1339,26 @@ function onKick(ball, foot, nowMs, side) {
       const dot = inVx * contactN.x + inVy * contactN.y;
       reflectN = norm(inVx - 2 * dot * contactN.x, inVy - 2 * dot * contactN.y);
     }
-    const wContact = touch.def.wContact;
-    const wSwing = touch.def.wSwing;
-    const wReflect = 0.15;
-    let dx = 0, dy = 0;
-    if (contactN) { dx += contactN.x * wContact; dy += contactN.y * wContact; }
-    if (swingN)   { dx += swingN.x * wSwing;     dy += swingN.y * wSwing; }
-    if (reflectN) { dx += reflectN.x * wReflect; dy += reflectN.y * wReflect; }
-    const dir = norm(dx * 1000, dy * 1000) || swingN || { x: 0, y: -1 };
+    let aimX = 0;
+    if (contactN) aimX += contactN.x * 0.58;
+    if (swingN) aimX += swingN.x * 0.27;
+    if (reflectN) aimX += reflectN.x * 0.15;
 
-    // ---- 威力: スイング速度への比例を強化(弱く振れば弱い球) ----
+    // ゴールは画面下(カメラ手前)。着弾X = ボール位置とゴール中央のブレンド + 狙い成分
+    // (どこから蹴っても素直に枠へ向かい、ミートと振りでコースを蹴り分けられる)
+    const geom = goalGeometry();
+    const goalCenterX = geom.gx + geom.gw / 2;
+    const landX = Math.max(-40, Math.min(canvas.width + 40,
+      ball.x * 0.45 + goalCenterX * 0.55 + aimX * geom.gw * 0.42));
+    const landY = geom.gy + geom.gh * 0.55;
+    // 強い振りほど速いシュート(短い到達時間)
     const mag = Math.max(1, (foot.speed || 0) * (ball.kind === "FRONT" ? 1.6 : 1));
-    const shotSpeed = (900 + Math.min(2600, mag * 1.1)) * DPR() / 2 * touch.def.power;
-    ball.kickedVx = dir.x * shotSpeed * 0.75; // 横は少しだけ寛容に
-    ball.kickedVy = dir.y * shotSpeed;
-    // カーブ: インフロント=内巻き / アウト系=外巻き
-    ball.curveAx = touch.def.curve !== 0
-      ? touch.def.curve * touch.medialSignX * 1400 * DPR()
-      : 0;
-    if (ball.kickedVy > -200 * DPR()) {
-      ball.kickedVy = 300 * DPR(); // ボールの上を叩いた/振り上げ不足→届かない
-      ball.shotGrounded = true;
-    }
-    ball.meetType = touch.key;
+    const shotTime = Math.max(0.4, 0.85 - Math.min(2600, mag) / 6000);
+    ball.shotP = 0;
+    ball.shotTime = shotTime;
+    ball.shotFromX = ball.x; ball.shotFromY = ball.y;
+    ball.shotToX = landX; ball.shotToY = landY;
+    ball.shotBaseR = ball.radius;
     spawnBurst(ball.x, ball.y, "#F5F8FF", 14);
     playKickSound(perfect);
     vibrate(perfect ? [40, 30, 60] : 35);
@@ -1607,85 +1619,116 @@ function drawParticles() {
 function drawGoal(nowMs) {
   const d = DPR();
   const geom = goalGeometry();
-  const { gx, gy, gw, gh, cols } = geom;
-  const postW = 6 * d;              // ポストの太さ
-  const depth = gh * 0.42;          // ネットの奥行き(上方向へすぼむ)
-  const backX1 = gx + gw * 0.09;    // 奥側フレームの左端
-  const backX2 = gx + gw * 0.91;    // 奥側フレームの右端
-  const backY = gy - depth * 0.55;  // 奥側フレームの高さ
+  const { gx, gy, gw, gh, cols, bx, by, bw } = geom;
+  const mouthBottom = gy + gh;
   ctx.save();
+  ctx.globalAlpha = 0.55; // ゴール全体を透過(プレー視界を遮らない)
 
-  // --- ネット(奥行きのあるメッシュ) ---
-  ctx.strokeStyle = "rgba(245,248,255,0.28)";
+  // --- ネット(奥のマウス → 手前の背面フレームへ広がるメッシュ) ---
+  ctx.strokeStyle = "rgba(245,248,255,0.4)";
   ctx.lineWidth = 1 * d;
   const meshN = 12;
-  // 縦網: 手前クロスバー上の各点 → 奥側フレームの対応点へ
   for (let i = 0; i <= meshN; i++) {
     const t = i / meshN;
-    const fx = gx + gw * t;
-    const bx = backX1 + (backX2 - backX1) * t;
-    ctx.beginPath(); ctx.moveTo(fx, gy); ctx.lineTo(bx, backY); ctx.stroke();
-    // ゴール内側の縦網(手前の口の中)
-    ctx.beginPath(); ctx.moveTo(fx, gy); ctx.lineTo(fx, gy + gh); ctx.stroke();
+    const mxp = gx + gw * t;          // マウス上の点
+    const bxp = bx + bw * t;          // 背面フレーム上の点
+    ctx.beginPath(); ctx.moveTo(mxp, mouthBottom); ctx.lineTo(bxp, by); ctx.stroke();
   }
-  // 横網: 奥へ向かって数段
   for (let j = 0; j <= 4; j++) {
     const t = j / 4;
-    const y1 = gy + (backY - gy) * t;
-    const x1 = gx + (backX1 - gx) * t;
-    const x2 = gx + gw + (backX2 - (gx + gw)) * t;
+    const y1 = mouthBottom + (by - mouthBottom) * t;
+    const x1 = gx + (bx - gx) * t;
+    const x2 = gx + gw + (bx + bw - (gx + gw)) * t;
     ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y1); ctx.stroke();
   }
-  // ゴール口の中の横網
-  for (let j = 1; j <= 3; j++) {
-    const y = gy + (gh * j) / 4;
-    ctx.beginPath(); ctx.moveTo(gx, y); ctx.lineTo(gx + gw, y); ctx.stroke();
+  // マウス面(開口部)の内側の網
+  for (let i = 1; i < meshN; i++) {
+    const xx = gx + (gw * i) / meshN;
+    ctx.beginPath(); ctx.moveTo(xx, gy); ctx.lineTo(xx, mouthBottom); ctx.stroke();
   }
-  // 奥側フレーム
-  ctx.strokeStyle = "rgba(245,248,255,0.4)";
-  ctx.lineWidth = 2.5 * d;
-  ctx.beginPath(); ctx.moveTo(backX1, backY); ctx.lineTo(backX2, backY); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(backX1, backY); ctx.lineTo(backX1, backY + depth * 0.5); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(backX2, backY); ctx.lineTo(backX2, backY + depth * 0.5); ctx.stroke();
+  for (let j = 1; j <= 2; j++) {
+    const yy = gy + (gh * j) / 3;
+    ctx.beginPath(); ctx.moveTo(gx, yy); ctx.lineTo(gx + gw, yy); ctx.stroke();
+  }
 
-  // --- ターゲットゾーン(左・中央・右) ---
+  // --- ゾーンガイド(左・中央・右、薄い区切りのみ) ---
   const zw = gw / cols;
-  for (let c = 0; c < cols; c++) {
+  ctx.strokeStyle = "rgba(245,248,255,0.22)";
+  ctx.lineWidth = 1.5 * d;
+  ctx.setLineDash([5 * d, 7 * d]);
+  for (let c = 1; c < cols; c++) {
     const zx = gx + c * zw;
-    if (c === targetZone) {
-      const pulse = 0.45 + Math.sin(nowMs / 160) * 0.18;
-      ctx.fillStyle = `rgba(255,71,87,${pulse})`;
-      ctx.fillRect(zx + 3 * d, gy + 3 * d, zw - 6 * d, gh - 6 * d);
-      ctx.strokeStyle = "#FF4757";
-      ctx.lineWidth = 3 * d;
-      ctx.shadowColor = "rgba(255,71,87,1)";
-      ctx.shadowBlur = 16 * d;
-      ctx.strokeRect(zx + 3 * d, gy + 3 * d, zw - 6 * d, gh - 6 * d);
-      ctx.shadowBlur = 0;
-      ctx.textAlign = "center";
-      ctx.font = `800 ${14 * d}px 'M PLUS 1', sans-serif`;
-      ctx.fillStyle = "#FFFFFF";
-      ctx.fillText("ここ!", zx + zw / 2, gy + gh / 2 + 5 * d);
-    } else {
-      ctx.strokeStyle = "rgba(245,248,255,0.18)";
-      ctx.lineWidth = 1.5 * d;
-      ctx.setLineDash([6 * d, 6 * d]);
-      ctx.strokeRect(zx + 3 * d, gy + 3 * d, zw - 6 * d, gh - 6 * d);
-      ctx.setLineDash([]);
-    }
+    ctx.beginPath(); ctx.moveTo(zx, gy); ctx.lineTo(zx, mouthBottom); ctx.stroke();
   }
+  ctx.setLineDash([]);
 
-  // --- ゴールフレーム(白いポスト+クロスバー、底辺なし) ---
+  // --- ゴールフレーム(白いクロスバー+両ポスト: マウス側) ---
   ctx.strokeStyle = "#FFFFFF";
   ctx.lineCap = "round";
-  ctx.lineWidth = postW;
-  ctx.shadowColor = "rgba(245,248,255,0.55)";
-  ctx.shadowBlur = 10 * d;
-  // クロスバー
-  ctx.beginPath(); ctx.moveTo(gx - postW / 2, gy); ctx.lineTo(gx + gw + postW / 2, gy); ctx.stroke();
-  // 左右ポスト
-  ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx, gy + gh); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(gx + gw, gy); ctx.lineTo(gx + gw, gy + gh); ctx.stroke();
+  ctx.lineWidth = 5 * d;
+  ctx.shadowColor = "rgba(245,248,255,0.5)";
+  ctx.shadowBlur = 8 * d;
+  ctx.beginPath(); ctx.moveTo(gx - 2 * d, gy); ctx.lineTo(gx + gw + 2 * d, gy); ctx.stroke(); // クロスバー
+  ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx, mouthBottom); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(gx + gw, gy); ctx.lineTo(gx + gw, mouthBottom); ctx.stroke();
+  ctx.shadowBlur = 0;
+  // 背面フレーム(手前側、太め・薄め)
+  ctx.strokeStyle = "rgba(255,255,255,0.5)";
+  ctx.lineWidth = 7 * d;
+  ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + bw, by); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(gx, mouthBottom); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(bx + bw, by); ctx.lineTo(gx + gw, mouthBottom); ctx.stroke();
+
+  ctx.restore();
+
+  // --- キーパー(半透明シルエット、左右にゆらぎ) ---
+  drawKeeper(nowMs, geom);
+}
+
+function drawKeeper(nowMs, geom) {
+  const d = DPR();
+  const { gx, gy, gw, gh, cols } = geom;
+  const zw = gw / cols;
+  const sway = Math.sin(nowMs / 420) * zw * 0.06; // 左右のゆらぎ
+  const cx = gx + targetZone * zw + zw / 2 + sway;
+  const catching = nowMs - keeperCatchAt < 450; // セーブ直後は腕を広げる
+  const kh = gh * 2.1;              // キーパーの身長(ゴールより頭が出る)
+  const baseY = gy + gh;            // 足元 = マウス下辺
+  const headR = kh * 0.13;
+  ctx.save();
+  ctx.globalAlpha = catching ? 0.85 : 0.6;
+  ctx.strokeStyle = "#5FD9FF";
+  ctx.fillStyle = "rgba(95,217,255,0.28)";
+  ctx.lineWidth = 3.5 * d;
+  ctx.lineCap = "round";
+  ctx.shadowColor = "rgba(95,217,255,0.9)";
+  ctx.shadowBlur = 12 * d;
+
+  const headY = baseY - kh + headR;
+  const shoulderY = headY + headR * 1.7;
+  const hipY = baseY - kh * 0.38;
+  // 頭
+  ctx.beginPath(); ctx.arc(cx, headY, headR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  // 胴体
+  ctx.beginPath(); ctx.moveTo(cx, shoulderY); ctx.lineTo(cx, hipY); ctx.stroke();
+  // 腕(通常=構え/セーブ時=大きく広げる)
+  const armSpan = catching ? kh * 0.52 : kh * 0.34;
+  const armY = catching ? shoulderY - kh * 0.12 : shoulderY + kh * 0.1;
+  ctx.beginPath(); ctx.moveTo(cx, shoulderY + 4 * d); ctx.lineTo(cx - armSpan, armY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, shoulderY + 4 * d); ctx.lineTo(cx + armSpan, armY); ctx.stroke();
+  // グローブ
+  ctx.beginPath(); ctx.arc(cx - armSpan, armY, headR * 0.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx + armSpan, armY, headR * 0.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  // 脚(軽く開いた構え)
+  ctx.beginPath(); ctx.moveTo(cx, hipY); ctx.lineTo(cx - kh * 0.16, baseY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, hipY); ctx.lineTo(cx + kh * 0.16, baseY); ctx.stroke();
+
+  // 「GK」ラベル
+  ctx.shadowBlur = 4 * d;
+  ctx.textAlign = "center";
+  ctx.font = `800 ${11 * d}px 'M PLUS 1', sans-serif`;
+  ctx.fillStyle = "rgba(95,217,255,0.95)";
+  ctx.fillText("GK", cx, headY - headR - 8 * d);
   ctx.restore();
 }
 function drawAllParts(nowMs) {
@@ -2010,8 +2053,8 @@ function loop(nowMs) {
   updateParticles(dt);
 
   // 描画
-  if (gameMode === "TARGET" && (phase === "playing" || phase === "countdown")) drawGoal(nowMs);
   for (const b of balls) drawBall(b);
+  if (gameMode === "TARGET" && (phase === "playing" || phase === "countdown")) drawGoal(nowMs);
   if (gameMode !== "CONTROL" || phase === "positioning") {
     drawFoot(feet.left, nowMs);
     drawFoot(feet.right, nowMs);
@@ -2028,7 +2071,7 @@ rafHandle = requestAnimationFrame(loop);
 const DIFF_NAME = { EASY: "イージー", NORMAL: "ノーマル", HARD: "ハード", REAL: "リアル" };
 const MODE_META = {
   VOLLEY: { eyebrow: "MEET SHOT", title: "ミートシュート", desc: "飛んでくるボールを正確にミートしてスコアを競う" },
-  TARGET: { eyebrow: "GOAL TARGET", title: "ゴールターゲット", desc: "光ったコースを狙って蹴り分ける、シュート精度のトレーニング" },
+  TARGET: { eyebrow: "GOAL TARGET", title: "ゴールターゲット", desc: "手前のゴールに立つキーパーをかわして、空いたコースへ蹴り込むシュート精度トレーニング" },
 };
 function refreshHighScoreLine() {
   renderBest5();
