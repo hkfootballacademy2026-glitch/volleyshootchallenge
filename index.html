@@ -207,6 +207,31 @@
 
   .highscore-line { font-size: 12px; font-weight: 700; color: var(--gold); letter-spacing: .06em; }
 
+  /* ===== ボール凡例 ===== */
+  .ball-legend {
+    width: 100%; max-width: 420px;
+    background: rgba(242,245,250,.03);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: grid; gap: 6px;
+    text-align: left;
+  }
+  .bl-title {
+    font-family: var(--accent-font); font-weight: 700; font-size: 11px;
+    letter-spacing: .18em; color: var(--mute); margin-bottom: 2px;
+  }
+  .bl-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--mute); line-height: 1.5;
+  }
+  .bl-row b { color: var(--white); }
+  .bl-dot {
+    width: 14px; height: 14px; border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 6px rgba(245,248,255,.3);
+  }
+
   .howto {
     display: grid; gap: 8px;
     font-size: 12.5px; font-weight: 500;
@@ -403,6 +428,13 @@
         <div class="mc-title">ゴールターゲット</div>
         <div class="mc-desc">キーパーをかわして空いたコースへ蹴り込む、シュート精度のトレーニング</div>
       </div>
+    </div>
+    <div class="ball-legend">
+      <div class="bl-title">BALL GUIDE</div>
+      <div class="bl-row"><span class="bl-dot" style="background:#F5F8FF"></span><b>白</b> 10点 — 基本のボール</div>
+      <div class="bl-row"><span class="bl-dot" style="background:#3B9CFF"></span><b>青</b> 20点 — 高速で飛んでくる</div>
+      <div class="bl-row"><span class="bl-dot" style="background:#FFC53D"></span><b>金</b> 30点 — レア出現の高得点</div>
+      <div class="bl-row"><span class="bl-dot" style="background:#1A1A22; border:1px solid #FF4757"></span><b style="color:#FF4757">黒</b> 蹴ると減点!スルーすればボーナス(静止して当たるのはセーフ)</div>
     </div>
     <div class="howto" style="max-width:420px;">
       <div><b>1.</b> スマホを床や台に立てかけて固定する</div>
@@ -606,6 +638,33 @@ let reactionTimes = []; // 正面ボール: 蹴りどき点灯→キックまで
 let targetZone = 0;      // キーパーが立っているゾーン index (左0/中央1/右2)
 let keeperCatchAt = 0;   // セーブ演出用タイムスタンプ
 let keeperDive = null;   // {fromX, toX, start, dur, saved} シュートへの反応ダイブ
+// 検出した体格アンカー: 地面レベル(足の最下点)と頭の位置
+let groundY = null;
+let headTopY = null;
+let lastAnchorMs = 0;
+function trackBodyAnchors(nowMs) {
+  const dtSec = Math.min(0.2, Math.max(0, (nowMs - lastAnchorMs) / 1000));
+  lastAnchorMs = nowMs;
+  const feetYs = [feet.left, feet.right].filter(Boolean).map((f) => f.y);
+  if (feetYs.length > 0) {
+    const cand = Math.max(...feetYs); // 低い方の足=地面に近い
+    // 地面は「足が最も低く映った位置」。ゆっくり減衰させ、立ち位置の変化に数秒で追従
+    groundY = groundY === null ? cand : Math.max(cand, groundY - 40 * dtSec * DPR());
+  }
+  const head = bodyParts.head;
+  if (head) {
+    headTopY = headTopY === null ? head.y : Math.min(head.y, headTopY + 40 * dtSec * DPR());
+  }
+}
+// ボールの高さ決定に使う体格情報(未検出時は画面比率にフォールバック)
+function bodyAnchor() {
+  const h = canvas.height;
+  const ground = groundY !== null ? Math.min(h * 0.97, groundY) : h * 0.85;
+  const bodyH = headTopY !== null && groundY !== null
+    ? Math.max(h * 0.25, Math.min(h * 0.85, groundY - headTopY))
+    : h * 0.5;
+  return { ground, bodyH };
+}
 let goalOnTarget = 0;    // ターゲット的中数
 let goalFrameIn = 0;     // 枠内(ゾーン違い)数
 function goalGeometry() {
@@ -936,6 +995,7 @@ function updatePose(nowMs) {
     thighR: withSpeed(thighR, prevParts.thighR),
   };
   feet = { left: bodyParts.footL, right: bodyParts.footR, leftSeenAt: nowMs };
+  trackBodyAnchors(nowMs);
 }
 function partCategory(key) {
   if (key === "footL" || key === "footR") return "FOOT";
@@ -980,7 +1040,8 @@ function spawnBall(nowMs) {
   const speedFactor = cfg.speedMin + Math.random() * (cfg.speedMax - cfg.speedMin);
   const typeSpeed = type === "BLUE" ? 1.25 : 1;
   const startX = fromLeft ? -40 : w + 40;
-  const startY = h * (0.78 + Math.random() * 0.18);
+  const anchor = bodyAnchor();
+  const startY = Math.min(h * 0.97, anchor.ground + (Math.random() * 30 - 5) * DPR());
   let targetX = w * (0.3 + Math.random() * 0.4);
   let apexY = h * (0.28 + Math.random() * 0.25);
   let requiredPart = null;
@@ -1019,9 +1080,12 @@ function spawnBall(nowMs) {
         ty = Math.max(h * 0.4, Math.min(h * 0.95, fp.y + (Math.random() - 0.5) * 120 * d));
       } else {
         tx = Math.max(w * 0.15, Math.min(w * 0.85, fp.x + (Math.random() - 0.5) * 180 * d));
-        // 約4割は足元より高い位置(膝〜腰)へ届く浮き球
-        const lift = Math.random() < 0.4 ? (120 + Math.random() * 220) * d : (Math.random() - 0.5) * 80 * d;
-        ty = Math.max(h * 0.38, Math.min(h * 0.95, fp.y - lift));
+        // 55%は足元より高い位置(体高の20〜50%=膝〜腰)へ届く浮き球
+        const anchor2 = bodyAnchor();
+        const lift = Math.random() < 0.55
+          ? anchor2.bodyH * (0.2 + Math.random() * 0.3)
+          : (Math.random() - 0.5) * 80 * d;
+        ty = Math.max(h * 0.35, Math.min(h * 0.95, fp.y - lift));
       }
     } else {
       tx = w * (0.3 + Math.random() * 0.4);
@@ -1042,12 +1106,26 @@ function spawnBall(nowMs) {
     return;
   }
 
-  const vy0 = -Math.sqrt(2 * g * Math.max(60, startY - apexY));
+  // 軌道生成: targetX に到達する瞬間の高さ(passY)を、検出した地面と体格を基準に直接指定する。
+  // 65%は膝〜胸の高さ(浮き球のダイレクトボレー)、35%は足元(ハーフボレー)
+  let vy0;
+  let spawnPassY = null;
+  if (gameMode === "CONTROL") {
+    vy0 = -Math.sqrt(2 * g * Math.max(60, startY - apexY)); // 休眠モードは従来式
+  } else {
+    const anchor = bodyAnchor();
+    const highBall = Math.random() < 0.65;
+    const rawPassY = highBall
+      ? anchor.ground - anchor.bodyH * (0.25 + Math.random() * 0.35)  // 膝〜胸(体高の25〜60%上)
+      : anchor.ground - anchor.bodyH * (0.02 + Math.random() * 0.1);  // 足元
+    spawnPassY = Math.max(h * 0.28, rawPassY);
+    vy0 = (spawnPassY - startY - 0.5 * g * flightTime * flightTime) / flightTime;
+  }
   const vx0 = (targetX - startX) / flightTime;
   balls.push({
     id: ballId++, kind: "SIDE", x: startX, y: startY, vx: vx0, vy: vy0,
     radius: fullRadius, type, active: true, spin: 0, kicked: false, kickedVx: 0, kickedVy: 0,
-    requiredPart, faulted: false, touchHinted: false, fade: 1,
+    requiredPart, faulted: false, touchHinted: false, fade: 1, passY: spawnPassY,
   });
   if (type !== "BLACK") totalBalls++;
 }
