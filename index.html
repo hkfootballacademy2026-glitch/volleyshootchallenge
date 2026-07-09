@@ -1172,6 +1172,39 @@ function updateBalls(dt, nowMs) {
       continue;
     }
     if (b.kind === "FRONT") {
+      // 蹴りどきを逃した後は「死に球」として物理落下し、足元(地面)まで落ちてから消える
+      if (b.dropping) {
+        b.vy += g * dt;
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+        b.spin += dt * 8;
+        const groundLine = Math.min(h * 0.97, bodyAnchor().ground + 6 * DPR());
+        if (b.y >= groundLine) {
+          b.y = groundLine;
+          b.vx *= 0.92; // 地面で転がりつつ減速
+          b.fade = Math.max(0, b.fade - dt * 2.2); // 着地してからフェード
+          // 着地=蹴れなかったことが確定した瞬間にミスを精算(1回だけ)
+          if (b.active && !b.settled && phase === "playing") {
+            b.settled = true;
+            b.active = false; // 以後は判定なし
+            if (b.type === "BLACK") {
+              const bonus = Math.round(5 * cfg.multiplier);
+              score += bonus;
+              scoreVal.textContent = String(score);
+              popups.push({
+                x: Math.max(60, Math.min(w - 60, b.x)), y: Math.max(120, Math.min(h - 120, b.y)),
+                text: `+${bonus}`, sub: "ナイススルー!",
+                born: nowMs, life: 900, color: "#7CFC9A",
+              });
+              playBeep(784, 0.1, 0.12);
+            } else {
+              combo = 0;
+              updateComboBanner();
+            }
+          }
+        }
+        continue;
+      }
       const px = b.x, py = b.y;
       const wasKickable = b.p >= FRONT_KICK_MIN_P;
       b.p += dt / b.flightTime;
@@ -1185,10 +1218,14 @@ function updateBalls(dt, nowMs) {
       b.spin += dt * 5;
       b.instVx = (b.x - px) / dt;
       b.instVy = (b.y - py) / dt;
-      // 通り過ぎたらフェードアウト
+      // 蹴りどき窓が閉じた → 落下に移行。ただしまだ蹴れる(半分の点数)
       if (b.p > FRONT_KICK_MAX_P) {
-        b.fade = Math.max(0, 1 - (b.p - FRONT_KICK_MAX_P) / 0.25);
-        b.radius = b.fullRadius * (1 + (b.p - 1) * 0.6); // 手前に抜けて更に拡大
+        b.dropping = true;
+        b.late = true;          // 遅れキック: 得点半減の印
+        b.radius = b.fullRadius;
+        b.fade = 0.92;
+        b.vx = (b.instVx || 0) * 0.35;
+        b.vy = Math.max(120 * DPR(), (b.instVy || 0) * 0.5);
       }
       continue;
     }
@@ -1233,7 +1270,7 @@ function updateBalls(dt, nowMs) {
     if (hitFeet.length === 0) return;
     for (const b of balls) {
       if (!b.active || b.kicked) continue;
-      if (b.kind === "FRONT" && !isFrontKickable(b)) continue; // まだ遠い/通過後は判定なし
+      if (b.kind === "FRONT" && !isFrontKickable(b) && !b.dropping) continue; // まだ遠い球は判定なし(落下中は蹴れる)
       for (const f of hitFeet) {
         const dist = Math.hypot(f.point.x - b.x, f.point.y - b.y);
         // 黒ボールは判定を狭く(明確に蹴った時だけ)
@@ -1306,7 +1343,7 @@ function resolveShot(ball, nowMs, geom) {
     return;
   }
   // キーパーのいないコース → ゴール!!
-  const base = 30;
+  const base = ball.late ? 15 : 30; // 蹴りどきを逃した遅れシュートは半分
   const comboBonus = combo * 5;
   const pts = Math.round(base * cfg.multiplier * (ball.shotPerfect ? 1.5 : 1) + comboBonus);
   score += pts;
@@ -1459,13 +1496,18 @@ function onKick(ball, foot, nowMs, side) {
   }
   const perfect = (foot.speed || 0) >= PERFECT_FOOT_SPEED * DPR() * (ball.kind === "FRONT" ? 0.6 : 1);
   const base = BALL_TYPE[ball.type].points;
-  const comboBonus = combo * 5;
-  const pts = Math.round(base * cfg.multiplier * (perfect ? 1.5 : 1) + comboBonus);
+  const late = !!ball.late; // 蹴りどきを逃した後の遅れキック: 半分の点・コンボ据え置き
+  const comboBonus = late ? 0 : combo * 5;
+  const pts = late
+    ? Math.max(1, Math.round(base * cfg.multiplier * 0.5))
+    : Math.round(base * cfg.multiplier * (perfect ? 1.5 : 1) + comboBonus);
   score += pts;
   hits++;
-  combo++;
-  maxCombo = Math.max(maxCombo, combo);
-  if (perfect) perfectCount++;
+  if (!late) {
+    combo++;
+    maxCombo = Math.max(maxCombo, combo);
+    if (perfect) perfectCount++;
+  }
   lastHitAt = nowMs;
 
   ball.kicked = true;
@@ -1475,11 +1517,11 @@ function onKick(ball, foot, nowMs, side) {
   ball.kickedVx = dir * (500 + Math.random() * 400) * DPR();
   ball.kickedVy = -(1400 + Math.random() * 500) * DPR();
 
-  spawnBurst(ball.x, ball.y, BALL_TYPE[ball.type].color, perfect ? 26 : 16);
+  spawnBurst(ball.x, ball.y, BALL_TYPE[ball.type].color, late ? 10 : perfect ? 26 : 16);
   popups.push({
     x: ball.x, y: ball.y - 20,
     text: `+${pts}`,
-    sub: perfect ? "PERFECT!" : (ball.type === "GOLD" ? "GOLD!" : ""),
+    sub: late ? "遅れた!" : perfect ? "PERFECT!" : (ball.type === "GOLD" ? "GOLD!" : ""),
     born: nowMs, life: 900,
     color: perfect ? "#FFC53D" : "#F5F8FF",
   });
