@@ -1209,23 +1209,23 @@ function updateBalls(dt, nowMs) {
       const wasKickable = b.p >= FRONT_KICK_MIN_P;
       b.p += dt / b.flightTime;
       if (!wasKickable && b.p >= FRONT_KICK_MIN_P && !b.ringAt) b.ringAt = nowMs;
+      // 位置の補間は p=1 で止めず延長する(空中で静止しない)。サイズだけ等倍で頭打ち
+      const pm = b.p;
       const pc = Math.min(1, b.p);
-      // 位置: 出発点→足元へ。少し山なりの弧を描く
-      b.x = b.startX + (b.targetX - b.startX) * pc;
-      b.y = b.startY + (b.targetY - b.startY) * easeInQuad(pc) - Math.sin(pc * Math.PI) * 40 * DPR();
-      // 奥行き: 近づくほど大きく
+      b.x = b.startX + (b.targetX - b.startX) * pm;
+      b.y = b.startY + (b.targetY - b.startY) * easeInQuad(pm) - Math.sin(pm * Math.PI) * 40 * DPR();
       b.radius = b.fullRadius * (0.32 + 0.68 * easeInQuad(pc));
       b.spin += dt * 5;
       b.instVx = (b.x - px) / dt;
       b.instVy = (b.y - py) / dt;
-      // 蹴りどき窓が閉じた → 落下に移行。ただしまだ蹴れる(半分の点数)
+      // 蹴りどき窓が閉じた → 直前の速度をそのまま引き継いで自然に落下へ(まだ蹴れる・半分の点数)
       if (b.p > FRONT_KICK_MAX_P) {
         b.dropping = true;
         b.late = true;          // 遅れキック: 得点半減の印
         b.radius = b.fullRadius;
         b.fade = 0.92;
-        b.vx = (b.instVx || 0) * 0.35;
-        b.vy = Math.max(120 * DPR(), (b.instVy || 0) * 0.5);
+        b.vx = b.instVx || 0;
+        b.vy = Math.max(0, b.instVy || 0);
       }
       continue;
     }
