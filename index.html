@@ -612,8 +612,8 @@ function goalGeometry() {
   // 画面下・後ろ向きのゴール(カメラの手前にゴールがあり、プレイヤーはこちらへ蹴り込む)
   // 高さを基準に幅を決める: 横画面でもゴールが横に伸びすぎず、キーパーの守備範囲が保たれる
   const w = canvas.width, h = canvas.height;
-  const gh = h * 0.14;                       // マウスの高さ(画面高基準)
-  const gw = Math.min(w * 0.8, gh * 4.0);    // 幅は高さの4倍まで(実物比3:1に近い範囲)
+  const gh = h * 0.16;                       // マウスの高さ(画面高基準)
+  const gw = Math.min(w * 0.84, gh * 4.2);   // 幅は高さの4.2倍まで(実物比3:1に近い範囲)
   const gx = (w - gw) / 2;
   const gy = h * 0.88 - gh;                  // マウス上辺
   const cols = 3; // 左・中央・右(キーパーの立ち位置)
@@ -1000,13 +1000,7 @@ function spawnBall(nowMs) {
     }
   }
   const flightBase = gameMode === "CONTROL" ? 2.15 : 1.78; // 滞空しすぎない軌道に
-  let flightTime = (flightBase - speedFactor) / typeSpeed;
-  if (cfg.real) {
-    // 実物理: 頂点までの上昇+下降の対称時間から滞空を計算
-    const gReal = gAccel();
-    const rise = Math.max(60, startY - apexY);
-    flightTime = (2 * Math.sqrt((2 * rise) / gReal)) / typeSpeed;
-  }
+  const flightTime = (flightBase - speedFactor) / typeSpeed;
   const g = cfg.gravity * 1600 * DPR();
   const fullRadius = BALL_RADIUS_BASE * DPR() * cfg.ballScale * Math.min(1.25, Math.max(0.8, w / (420 * DPR()))) * (type === "GOLD" ? 0.92 : 1);
 
@@ -1025,7 +1019,9 @@ function spawnBall(nowMs) {
         ty = Math.max(h * 0.4, Math.min(h * 0.95, fp.y + (Math.random() - 0.5) * 120 * d));
       } else {
         tx = Math.max(w * 0.15, Math.min(w * 0.85, fp.x + (Math.random() - 0.5) * 180 * d));
-        ty = Math.max(h * 0.4, Math.min(h * 0.95, fp.y + (Math.random() - 0.5) * 80 * d));
+        // 約4割は足元より高い位置(膝〜腰)へ届く浮き球
+        const lift = Math.random() < 0.4 ? (120 + Math.random() * 220) * d : (Math.random() - 0.5) * 80 * d;
+        ty = Math.max(h * 0.38, Math.min(h * 0.95, fp.y - lift));
       }
     } else {
       tx = w * (0.3 + Math.random() * 0.4);
