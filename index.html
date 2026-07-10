@@ -503,6 +503,7 @@
       <div class="stat-box"><div class="s-label">成功率</div><div class="s-value" id="r-rate">0%</div></div>
       <div class="stat-box"><div class="s-label">最大コンボ</div><div class="s-value" id="r-combo">0</div></div>
       <div class="stat-box"><div class="s-label">PERFECT</div><div class="s-value" id="r-perfect">0</div></div>
+      <div class="stat-box hidden" id="align-box"><div class="s-label">フォーム一致</div><div class="s-value" id="r-align">-</div></div>
       <div class="stat-box"><div class="s-label">黒ボール減点</div><div class="s-value" id="r-penalty" style="color:#FF4757">0</div></div>
       <div class="stat-box"><div class="s-label">左足 / 右足</div><div class="s-value" id="r-feet">0 / 0</div></div>
       <div class="stat-box"><div class="s-label">平均反応</div><div class="s-value" id="r-react">-</div></div>
@@ -637,7 +638,39 @@ let reactionTimes = []; // 正面ボール: 蹴りどき点灯→キックまで
 // ゴールターゲットモード
 let targetZone = 0;      // キーパーが立っているゾーン index (左0/中央1/右2)
 let keeperCatchAt = 0;   // セーブ演出用タイムスタンプ
+let formShotCount = 0;   // ゴールターゲット: シュート数(フォーム一致率用)
+let formAlignCount = 0;  // 振り抜きと軸足が一致したシュート数
 let keeperDive = null;   // {fromX, toX, start, dur, saved} シュートへの反応ダイブ
+// 蹴り分け用: 足のスイング速度の移動平均(検出ジッターの影響を抑える)
+const swingSmooth = { L: { x: 0, y: 0 }, R: { x: 0, y: 0 } };
+// 振り抜きライン用: 足の位置履歴(直近約200ms)
+const footTrail = { L: [], R: [] };
+function updateSwingSmooth(nowMs) {
+  const pairs = [["L", feet.left], ["R", feet.right]];
+  for (const [k, f] of pairs) {
+    if (!f) continue;
+    swingSmooth[k].x = swingSmooth[k].x * 0.55 + (f.velX || 0) * 0.45;
+    swingSmooth[k].y = swingSmooth[k].y * 0.55 + (f.velY || 0) * 0.45;
+    const tr = footTrail[k];
+    tr.push({ x: f.x, y: f.y, t: nowMs });
+    while (tr.length > 0 && nowMs - tr[0].t > 220) tr.shift();
+  }
+}
+// 振り抜き方向: 接触前約160msの足の軌跡を直線近似(1フレームの偶然に左右されない)
+function swingLineDir(side, nowMs) {
+  const tr = footTrail[side] || [];
+  const windowPts = tr.filter((p) => nowMs - p.t <= 170);
+  if (windowPts.length >= 2) {
+    const a = windowPts[0], b = windowPts[windowPts.length - 1];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const m = Math.hypot(dx, dy);
+    if (m > 8) return { x: dx / m, y: dy / m };
+  }
+  // 軌跡が足りない時は平滑化速度にフォールバック
+  const sm = swingSmooth[side];
+  const m2 = Math.hypot(sm.x, sm.y);
+  return m2 > 1 ? { x: sm.x / m2, y: sm.y / m2 } : null;
+}
 // 検出した体格アンカー: 地面レベル(足の最下点)と頭の位置
 let groundY = null;
 let headTopY = null;
@@ -1138,6 +1171,7 @@ function isFrontKickable(b) {
 function easeInQuad(t) { return t * t; }
 function updateBalls(dt, nowMs) {
   const nowMsRef = nowMs;
+  updateSwingSmooth(nowMs);
   const cfg = DIFFICULTY[difficulty];
   const g = gAccel();
   const w = canvas.width, h = canvas.height;
@@ -1438,39 +1472,53 @@ function onKick(ball, foot, nowMs, side) {
     ball.shotPending = true;
     ball.shotPerfect = perfect;
 
-    // ---- 狙い(左右)の決定: ミートポイント+スイング+入射反射の横成分 ----
-    const norm = (x, y) => {
-      const m = Math.hypot(x, y);
-      return m > 1 ? { x: x / m, y: y / m } : null;
-    };
-    const contactN = norm(ball.x - foot.x, ball.y - foot.y); // ボールの右側を叩けば左へ
-    const swingN = norm(foot.velX || 0, foot.velY || 0);
-    const inVx = ball.kind === "FRONT" ? (ball.instVx || 0) : ball.vx;
-    const inVy = ball.kind === "FRONT" ? (ball.instVy || 0) : ball.vy;
-    let reflectN = null;
-    if (contactN) {
-      const dot = inVx * contactN.x + inVy * contactN.y;
-      reflectN = norm(inVx - 2 * dot * contactN.x, inVy - 2 * dot * contactN.y);
-    }
-    // 蹴り分け強化: スイング方向と入射反射の寄与を大きく
-    // (流れてきたボールを振り抜けば逆サイドへ抜けるスイープが出せる)
-    let aimX = 0;
-    if (contactN) aimX += contactN.x * 0.45;
-    if (swingN) aimX += swingN.x * 0.45;
-    if (reflectN) aimX += reflectN.x * 0.25;
-
+    // ---- 方向決定: 実際のボレー技術をそのまま測る(v21ベース: ピクセル単位の連続着弾) ----
+    // A. 振り抜きライン(60%): 接触前160msの足の軌跡 —「狙う方向へ振り抜け」
+    // D. 軸足の向き(40%): 蹴り足でない方のかかと→つま先軸 —「軸足のつま先が向いた方向に飛ぶ」
+    // 両者が逆を向いたら体の連動が切れたシュート = 方向成分が死んで中央寄りに飛ぶ
     const geom = goalGeometry();
+    const zw = geom.gw / geom.cols;
     const goalCenterX = geom.gx + geom.gw / 2;
+    const sw = swingLineDir(side, nowMs);
+    const swingX = sw ? sw.x : 0;
+    const plantFoot = side === "L" ? feet.right : feet.left;
+    let plantX = null;
+    if (plantFoot && plantFoot.axis && plantFoot.axis.heel && plantFoot.axis.toe) {
+      const ex = plantFoot.axis.toe.x - plantFoot.axis.heel.x;
+      const ey = plantFoot.axis.toe.y - plantFoot.axis.heel.y;
+      const len = Math.hypot(ex, ey);
+      if (len > 6) plantX = ex / len;
+    }
+    const swingVote = Math.abs(swingX) < 0.25 ? 0 : Math.sign(swingX);
+    const plantVote = plantX === null || Math.abs(plantX) < 0.3 ? 0 : Math.sign(plantX);
+    let sTech = plantX === null ? swingX : swingX * 0.6 + plantX * 0.4;
+    let aligned = true;
+    if (swingVote !== 0 && plantVote !== 0 && swingVote !== plantVote) {
+      aligned = false;
+      sTech *= 0.25; // 矛盾フォーム: 狙いが殺されて中央寄りの球になる
+    }
+    ball.shotAligned = aligned;
+    formShotCount++;
+    if (aligned) formAlignCount++;
+    // フォームのフィードバック: ゲームがどう読んだかを毎回見せる(上達ループ)
+    const dirName = (v, th) => (v === null ? "?" : Math.abs(v) < th ? "中" : v < 0 ? "左" : "右");
+    popups.push({
+      x: Math.max(80, Math.min(canvas.width - 80, foot.x)),
+      y: Math.max(160, foot.y - 90 * DPR()),
+      text: aligned ? "" : "バラバラ",
+      sub: `振り:${dirName(swingX, 0.25)} 軸足:${dirName(plantX, 0.3)}`,
+      born: nowMs, life: 950,
+      color: aligned ? "#7BE9FF" : "#9AA3B8",
+    });
+    // 着弾: ボール位置とゴール中央のブレンド + 技術成分(ピクセル単位・連続)
     const landX = Math.max(-40, Math.min(canvas.width + 40,
-      ball.x * 0.6 + goalCenterX * 0.4 + aimX * geom.gw * 0.5));
+      ball.x * 0.6 + goalCenterX * 0.4 + sTech * geom.gw * 0.55));
     const landY = geom.gy + geom.gh * 0.55;
     // 強い振りほど速いシュート(短い到達時間)
     const mag = Math.max(1, (foot.speed || 0) * (ball.kind === "FRONT" ? 1.6 : 1));
     const shotTime = Math.max(0.4, 0.85 - Math.min(2600, mag) / 6000);
 
-    // ---- キーパーの反応: シュートに向かってダイブする ----
-    // 立ち位置からの到達範囲 = 腕の届く幅 + ダイブ距離(シュートが遅いほど遠くまで届く)
-    const zw = geom.gw / geom.cols;
+    // ---- キーパーの反応: シュートへ物理的にダイブ(v21方式: 弱い球ほど遠くまで届く) ----
     const keeperStandX = geom.gx + targetZone * zw + zw / 2;
     const reach = zw * 0.35 + Math.max(0, shotTime - 0.42) * geom.gw * 1.45;
     const inFrame = landX >= geom.gx && landX <= geom.gx + geom.gw;
@@ -2041,6 +2089,7 @@ function beginPlay() {
   penaltyCount = 0; faultCount = 0;
   leftHits = 0; rightHits = 0; reactionTimes = [];
   goalOnTarget = 0; goalFrameIn = 0;
+  formShotCount = 0; formAlignCount = 0;
   rerollTarget();
   if (!freeMode) startRecording();
   balls = []; particles = []; popups = [];
@@ -2105,6 +2154,13 @@ function endGame() {
       hide($("newrecord"));
     }
     pushScoreHistory(gameMode, difficulty, score);
+  }
+  const alignBox = $("align-box");
+  if (gameMode === "TARGET" && formShotCount > 0) {
+    $("r-align").textContent = Math.round((formAlignCount / formShotCount) * 100) + "%";
+    alignBox.classList.remove("hidden");
+  } else {
+    alignBox.classList.add("hidden");
   }
   const rb = $("replay-view-btn");
   const sb = $("replay-save-btn");
