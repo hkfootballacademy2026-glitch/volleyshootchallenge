@@ -638,6 +638,7 @@ let reactionTimes = []; // 正面ボール: 蹴りどき点灯→キックまで
 // ゴールターゲットモード
 let targetZone = 0;      // キーパーが立っているゾーン index (左0/中央1/右2)
 let keeperCatchAt = 0;   // セーブ演出用タイムスタンプ
+let formHint = null;     // 直近シュートのフォーム分析(固定スロット表示)
 let formShotCount = 0;   // ゴールターゲット: シュート数(フォーム一致率用)
 let formAlignCount = 0;  // 振り抜きと軸足が一致したシュート数
 let keeperDive = null;   // {fromX, toX, start, dur, saved} シュートへの反応ダイブ
@@ -656,20 +657,20 @@ function updateSwingSmooth(nowMs) {
     while (tr.length > 0 && nowMs - tr[0].t > 220) tr.shift();
   }
 }
-// 振り抜き方向: 接触前約160msの足の軌跡を直線近似(1フレームの偶然に左右されない)
-function swingLineDir(side, nowMs) {
+// 振り抜きの横成分: 接触前約170msの「横方向の移動量」を体格でスケールして測る。
+// ボレーの振りは画面上ほぼ縦なので、方向を正規化すると横成分が薄まって消える。
+// 移動量そのものを見れば、縦に大きく振りながら横に流す本物のスイングが正しく出る。
+function swingLateralX(side, nowMs) {
   const tr = footTrail[side] || [];
   const windowPts = tr.filter((p) => nowMs - p.t <= 170);
+  let dx = 0;
   if (windowPts.length >= 2) {
-    const a = windowPts[0], b = windowPts[windowPts.length - 1];
-    const dx = b.x - a.x, dy = b.y - a.y;
-    const m = Math.hypot(dx, dy);
-    if (m > 8) return { x: dx / m, y: dy / m };
+    dx = windowPts[windowPts.length - 1].x - windowPts[0].x;
+  } else {
+    dx = (swingSmooth[side].x || 0) * 0.15; // フォールバック: 平滑化速度×概算時間
   }
-  // 軌跡が足りない時は平滑化速度にフォールバック
-  const sm = swingSmooth[side];
-  const m2 = Math.hypot(sm.x, sm.y);
-  return m2 > 1 ? { x: sm.x / m2, y: sm.y / m2 } : null;
+  const scale = bodyAnchor().bodyH * 0.22; // 体高の22%の横移動=フル信号
+  return Math.max(-1, Math.min(1, dx / Math.max(40, scale)));
 }
 // 検出した体格アンカー: 地面レベル(足の最下点)と頭の位置
 let groundY = null;
@@ -1479,19 +1480,20 @@ function onKick(ball, foot, nowMs, side) {
     const geom = goalGeometry();
     const zw = geom.gw / geom.cols;
     const goalCenterX = geom.gx + geom.gw / 2;
-    const sw = swingLineDir(side, nowMs);
-    const swingX = sw ? sw.x : 0;
+    const swingX = swingLateralX(side, nowMs);
     const plantFoot = side === "L" ? feet.right : feet.left;
     let plantX = null;
     if (plantFoot && plantFoot.axis && plantFoot.axis.heel && plantFoot.axis.toe) {
       const ex = plantFoot.axis.toe.x - plantFoot.axis.heel.x;
       const ey = plantFoot.axis.toe.y - plantFoot.axis.heel.y;
       const len = Math.hypot(ex, ey);
-      if (len > 6) plantX = ex / len;
+      // 2Dの遠近圧縮でカメラ向きの足は横成分が小さく写るため1.7倍に増幅
+      if (len > 6) plantX = Math.max(-1, Math.min(1, (ex / len) * 1.7));
     }
-    const swingVote = Math.abs(swingX) < 0.25 ? 0 : Math.sign(swingX);
-    const plantVote = plantX === null || Math.abs(plantX) < 0.3 ? 0 : Math.sign(plantX);
-    let sTech = plantX === null ? swingX : swingX * 0.6 + plantX * 0.4;
+    const swingVote = Math.abs(swingX) < 0.22 ? 0 : Math.sign(swingX);
+    const plantVote = plantX === null || Math.abs(plantX) < 0.22 ? 0 : Math.sign(plantX);
+    // 軸足は静止していて検出が安定なので比重を上げる(軸足0.55/振り0.45)
+    let sTech = plantX === null ? swingX : swingX * 0.45 + plantX * 0.55;
     let aligned = true;
     if (swingVote !== 0 && plantVote !== 0 && swingVote !== plantVote) {
       aligned = false;
@@ -1500,16 +1502,12 @@ function onKick(ball, foot, nowMs, side) {
     ball.shotAligned = aligned;
     formShotCount++;
     if (aligned) formAlignCount++;
-    // フォームのフィードバック: ゲームがどう読んだかを毎回見せる(上達ループ)
-    const dirName = (v, th) => (v === null ? "?" : Math.abs(v) < th ? "中" : v < 0 ? "左" : "右");
-    popups.push({
-      x: Math.max(80, Math.min(canvas.width - 80, foot.x)),
-      y: Math.max(160, foot.y - 90 * DPR()),
-      text: aligned ? "" : "バラバラ",
-      sub: `振り:${dirName(swingX, 0.25)} 軸足:${dirName(plantX, 0.3)}`,
-      born: nowMs, life: 950,
-      color: aligned ? "#7BE9FF" : "#9AA3B8",
-    });
+    // フォームのフィードバック: 固定スロット1箇所に最新の分析だけを表示(文字の重なりを防ぐ)
+    const dirName = (v) => (v === null ? "?" : Math.abs(v) < 0.22 ? "中" : v < 0 ? "左" : "右");
+    formHint = {
+      swing: dirName(swingX), plant: dirName(plantX),
+      aligned, until: nowMs + 1300,
+    };
     // 着弾: ボール位置とゴール中央のブレンド + 技術成分(ピクセル単位・連続)
     const landX = Math.max(-40, Math.min(canvas.width + 40,
       ball.x * 0.6 + goalCenterX * 0.4 + sTech * geom.gw * 0.55));
@@ -1865,6 +1863,28 @@ function drawGoal(nowMs) {
 
   // --- キーパー(半透明シルエット、左右にゆらぎ) ---
   drawKeeper(nowMs, geom);
+  drawFormHint(nowMs, geom);
+}
+
+// 直近シュートのフォーム分析をゴール上の固定位置に1つだけ表示する
+function drawFormHint(nowMs, geom) {
+  if (!formHint || nowMs > formHint.until) return;
+  const d = DPR();
+  const cx = geom.gx + geom.gw / 2;
+  const cy = geom.gy - 34 * d;
+  const label = `振り:${formHint.swing}  軸足:${formHint.plant}  ${formHint.aligned ? "✓" : "✗バラバラ"}`;
+  ctx.save();
+  ctx.font = `700 ${13 * d}px 'M PLUS 1', sans-serif`;
+  const tw = ctx.measureText(label).width;
+  const alpha = Math.min(1, (formHint.until - nowMs) / 300);
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = "rgba(7,9,15,0.78)";
+  roundRect(ctx, cx - tw / 2 - 12 * d, cy - 15 * d, tw + 24 * d, 26 * d, 8 * d);
+  ctx.fill();
+  ctx.fillStyle = formHint.aligned ? "#7BE9FF" : "#9AA3B8";
+  ctx.textAlign = "center";
+  ctx.fillText(label, cx, cy + 4 * d);
+  ctx.restore();
 }
 
 function drawKeeper(nowMs, geom) {
