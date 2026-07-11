@@ -91,6 +91,10 @@
     -webkit-background-clip: text; background-clip: text;
   }
   .subtitle { font-weight: 500; font-size: 13.5px; color: var(--mute); max-width: 420px; line-height: 1.75; }
+  #screen-difficulty .title { font-size: clamp(18px, 4.8vw, 26px); line-height: 1.1; }
+  #screen-difficulty .subtitle { font-size: 11px; line-height: 1.4; margin-top: 1px; }
+  #screen-difficulty { gap: 7px; padding: 16px 16px 20px; }
+  #screen-difficulty .best5-title { font-size: 10px; margin-top: 4px; }
 
   .btn {
     font-family: var(--accent-font); font-weight: 700;
@@ -159,21 +163,22 @@
   .mode-card[data-mode="TARGET"] .mc-icon { background: rgba(255,197,61,.14); }
 
   /* ===== 難易度カード ===== */
-  .diff-grid { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 380px; }
+  /* 難易度・スタイルカードを2列グリッドで縦を圧縮 */
+  .diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; width: 100%; max-width: 420px; }
   .diff-card {
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: flex-start; justify-content: space-between;
     font-family: var(--body-font);
     background: rgba(242,245,250,.03);
     border: 1px solid var(--line);
     border-radius: 12px;
-    padding: 13px 18px;
+    padding: 10px 12px;
     cursor: pointer;
     transition: all .12s ease;
     text-align: left;
   }
-  .diff-card .dc-name { font-weight: 800; font-size: 15px; color: var(--white); }
-  .diff-card .dc-detail { font-weight: 500; font-size: 11px; color: var(--mute); margin-top: 2px; }
-  .diff-card .dc-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); flex-shrink: 0; }
+  .diff-card .dc-name { font-weight: 800; font-size: 13px; color: var(--white); }
+  .diff-card .dc-detail { font-weight: 500; font-size: 10px; color: var(--mute); margin-top: 2px; line-height: 1.4; }
+  .diff-card .dc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line); flex-shrink: 0; margin-top: 4px; }
   .diff-card.selected {
     border-color: var(--cyan);
     background: rgba(31,224,216,.08);
@@ -823,7 +828,7 @@ function bodyAnchor() {
   const ground = groundY !== null ? Math.min(h * 0.97, groundY) : h * 0.85;
   const bodyH = headTopY !== null && groundY !== null
     ? Math.max(h * 0.25, Math.min(h * 0.85, groundY - headTopY))
-    : h * 0.5;
+    : h * 0.65;  // フォールバック: 未検出時は体高65%
   return { ground, bodyH };
 }
 let goalOnTarget = 0;    // ターゲット的中数
@@ -1343,11 +1348,11 @@ function spawnBall(nowMs) {
     vy0 = -Math.sqrt(2 * g * Math.max(60, startY - apexY)); // 休眠モードは従来式
   } else {
     const anchor = bodyAnchor();
-    const highBall = Math.random() < 0.65;
+    const highBall = Math.random() < 0.75;
     const rawPassY = highBall
-      ? anchor.ground - anchor.bodyH * (0.25 + Math.random() * 0.35)  // 膝〜胸(体高の25〜60%上)
-      : anchor.ground - anchor.bodyH * (0.02 + Math.random() * 0.1);  // 足元
-    spawnPassY = Math.max(h * 0.28, rawPassY);
+      ? anchor.ground - anchor.bodyH * (0.30 + Math.random() * 0.38)  // 膝〜胸上(体高の30〜68%上)
+      : anchor.ground - anchor.bodyH * (0.02 + Math.random() * 0.08); // 足元
+    spawnPassY = Math.max(h * 0.25, rawPassY);
     vy0 = (spawnPassY - startY - 0.5 * g * flightTime * flightTime) / flightTime;
   }
   const vx0 = (targetX - startX) / flightTime;
@@ -1425,11 +1430,11 @@ function spawnForArea(nowMs, xMin, xMax, pi) {
   const cx = (xMin + xMax) / 2;
   const hw = (xMax - xMin) * 0.35;
   const targetX = Math.max(xMin + 30, Math.min(xMax - 30, cx + (Math.random() * 2 - 1) * hw));
-  const highBall = Math.random() < 0.65;
+  const highBall = Math.random() < 0.75;
   const rawPassY = highBall
-    ? anchor.ground - anchor.bodyH * (0.25 + Math.random() * 0.35)
-    : anchor.ground - anchor.bodyH * (0.02 + Math.random() * 0.1);
-  const passY = Math.max(h * 0.28, rawPassY);
+    ? anchor.ground - anchor.bodyH * (0.30 + Math.random() * 0.38)
+    : anchor.ground - anchor.bodyH * (0.02 + Math.random() * 0.08);
+  const passY = Math.max(h * 0.25, rawPassY);
   const vy0 = (passY - startY - 0.5 * g * flightTime * flightTime) / flightTime;
   const vx0 = (targetX - startX) / flightTime;
   balls.push({
