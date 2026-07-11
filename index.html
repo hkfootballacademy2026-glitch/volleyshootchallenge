@@ -207,6 +207,47 @@
 
   .highscore-line { font-size: 12px; font-weight: 700; color: var(--gold); letter-spacing: .06em; }
 
+  /* ===== インフォパネル ===== */
+  .info-panels {
+    width: 100%; max-width: 480px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  /* details/summary アコーディオン */
+  .info-card {
+    background: rgba(242,245,250,.03);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    text-align: left;
+  }
+  .info-card[open] { border-color: rgba(31,224,216,.35); }
+  .ic-title {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    font-family: var(--accent-font); font-weight: 700; font-size: 12px;
+    letter-spacing: .12em; color: var(--cyan);
+    text-transform: uppercase;
+    cursor: pointer; user-select: none;
+    list-style: none; /* Safariのデフォルト矢印を消す */
+  }
+  .ic-title::-webkit-details-marker { display: none; }
+  .ic-title::after {
+    content: "＋";
+    font-size: 15px; font-weight: 400; color: var(--mute);
+    transition: transform .2s;
+  }
+  .info-card[open] .ic-title::after { content: "－"; color: var(--cyan); }
+  .ic-list {
+    margin: 0 0 12px; padding: 0 18px 0 34px;
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .ic-list li {
+    font-size: 12.5px; color: var(--mute); line-height: 1.55;
+  }
+  .ic-list b { color: var(--white); }
+  b.gold { color: var(--gold); }
+  b.cyan { color: var(--cyan); }
+
   /* ===== ボール凡例 ===== */
   .ball-legend {
     width: 100%; max-width: 420px;
@@ -429,19 +470,72 @@
         <div class="mc-desc">キーパーをかわして空いたコースへ蹴り込む、シュート精度のトレーニング</div>
       </div>
     </div>
-    <div class="ball-legend">
-      <div class="bl-title">BALL GUIDE</div>
-      <div class="bl-row"><span class="bl-dot" style="background:#F5F8FF"></span><b>白</b> 10点 — 基本のボール</div>
-      <div class="bl-row"><span class="bl-dot" style="background:#3B9CFF"></span><b>青</b> 20点 — 高速で飛んでくる</div>
-      <div class="bl-row"><span class="bl-dot" style="background:#FFC53D"></span><b>金</b> 30点 — レア出現の高得点</div>
-      <div class="bl-row"><span class="bl-dot" style="background:#1A1A22; border:1px solid #FF4757"></span><b style="color:#FF4757">黒</b> 蹴ると減点!スルーすればボーナス(静止して当たるのはセーフ)</div>
-    </div>
-    <div class="howto" style="max-width:420px;">
-      <div><b>1.</b> スマホを床や台に立てかけて固定する</div>
-      <div><b>2.</b> 2〜3歩下がって、<b>足元まで全身</b>が映るようにする</div>
-      <div><b>3.</b> ボールは<b>足を振って蹴る</b>!触れるだけでは無得点、速く振ると <b>PERFECT</b> で1.5倍</div>
-      <div><b>※</b> iPad・PCは<b>横画面</b>推奨/スマホは縦でもOK</div>
-    </div>
+    <!-- ===== アコーディオン インフォパネル ===== -->
+    <div class="info-panels">
+
+      <details class="info-card">
+        <summary class="ic-title">📱 はじめかた</summary>
+        <ol class="ic-list">
+          <li>スマホを<b>床や台に立てかけて固定</b>する(横画面推奨)</li>
+          <li><b>2〜3歩下がり</b>、足元まで全身がカメラに映る位置に立つ</li>
+          <li>足が検出されたら自動カウントダウンでゲーム開始!</li>
+        </ol>
+      </details>
+
+      <details class="info-card">
+        <summary class="ic-title">⚡ ミートシュートのルール</summary>
+        <ul class="ic-list">
+          <li>横や正面から飛んでくるボールを<b>足を振って蹴る</b></li>
+          <li>触れるだけでは無得点 — しっかり<b>振り抜く</b>ことが必要</li>
+          <li>速く振ると <b class="gold">PERFECT ×1.5倍</b></li>
+          <li>コンボ継続で<b>ボーナス加算</b>(5点×コンボ数)</li>
+          <li>蹴りどき! を過ぎても足元まで落ちてから蹴れる(点数半分)</li>
+        </ul>
+      </details>
+
+      <details class="info-card">
+        <summary class="ic-title">🎯 ゴールターゲットのルール</summary>
+        <ul class="ic-list">
+          <li>画面下の<b>透過ゴール</b>にシュートを狙い込む</li>
+          <li><b>キーパーをかわす</b>のがポイント — 正面に蹴るとセーブされる</li>
+          <li><b>強く振り抜く</b>と隣コースのダイブが届かずゴール</li>
+          <li>逆サイドは弱いシュートでもゴールになる</li>
+        </ul>
+      </details>
+
+      <details class="info-card">
+        <summary class="ic-title">🦵 ボレーシュートのコツ</summary>
+        <ul class="ic-list">
+          <li><b>軸足を蹴る方向に踏み込む</b> — つま先が向いた方向に飛ぶ</li>
+          <li><b>インサイドキック</b>(足の内側)は横に向けた足でパスしやすい</li>
+          <li><b>振り抜く方向に飛ぶ</b> — フォロースイングが重要</li>
+          <li>上から来る球は<b>タイミングを合わせて</b>ミート — ハーフボレー or ダイレクト</li>
+          <li>左右に蹴り分けるには<b>軸足の向きと振り抜きを揃える</b></li>
+        </ul>
+      </details>
+
+      <details class="info-card">
+        <summary class="ic-title">👥 2人モードのルール</summary>
+        <ul class="ic-list">
+          <li><b>チーム</b> — 2人でスコアを共有。インサイドで横に流すと<b>パス</b>に変換</li>
+          <li>パスを地面に落とさず相手がボレー → <b class="cyan">パス→ボレー!! ×1.5倍</b></li>
+          <li><b>VS</b> — 蹴った人に得点。60秒後に点数が多い方が勝ち</li>
+          <li>センターラインを3回越えると<b>レッドカード退場</b>(VSは相手の勝ち)</li>
+          <li>2人が全身映るには<b>3〜4m以上の距離</b>が必要</li>
+        </ul>
+      </details>
+
+      <details class="info-card">
+        <summary class="ic-title">⚽ ボール早見表</summary>
+        <div class="ball-legend" style="border:none; padding: 4px 0; background:none;">
+          <div class="bl-row"><span class="bl-dot" style="background:#F5F8FF"></span><b>白</b> <span style="color:var(--mute)">10点 — 基本のボール</span></div>
+          <div class="bl-row"><span class="bl-dot" style="background:#3B9CFF"></span><b>青</b> <span style="color:var(--mute)">20点 — 高速で飛んでくる</span></div>
+          <div class="bl-row"><span class="bl-dot" style="background:#FFC53D"></span><b>金</b> <span style="color:var(--mute)">30点 — レア出現の高得点</span></div>
+          <div class="bl-row"><span class="bl-dot" style="background:#1A1A22; border:1px solid #FF4757"></span><b style="color:#FF4757">黒</b> <span style="color:var(--mute)">蹴ると <b style="color:#FF4757">-20点</b> / スルーで小ボーナス / 静止接触はセーフ</span></div>
+        </div>
+      </details>
+
+    </div><!-- /.info-panels -->
     <div id="error-box" class="hidden"></div>
   </div>
 
@@ -469,9 +563,22 @@
         <div class="dc-dot"></div>
       </div>
     </div>
-    <div class="diff-grid" style="margin-top: 14px;">
-      <div class="diff-card" id="free-mode-card">
-        <div><div class="dc-name">フリーモード</div><div class="dc-detail">時間制限なしで延々と練習(スコア記録・リプレイなし)</div></div>
+    <div class="best5-title" style="margin-top: 14px; width: 100%; max-width: 380px;">PLAY STYLE</div>
+    <div class="diff-grid" id="style-row">
+      <div class="diff-card selected" data-style="SOLO">
+        <div><div class="dc-name">ソロ</div><div class="dc-detail">1人・時間制限あり・スコア記録あり</div></div>
+        <div class="dc-dot"></div>
+      </div>
+      <div class="diff-card" data-style="FREE">
+        <div><div class="dc-name">フリー</div><div class="dc-detail">1人・時間制限なしで延々と練習(記録なし)</div></div>
+        <div class="dc-dot"></div>
+      </div>
+      <div class="diff-card" data-style="TEAM" id="style-team">
+        <div><div class="dc-name">チーム</div><div class="dc-detail">2人協力・横に振るとパス!落とさずボレーで1.5倍</div></div>
+        <div class="dc-dot"></div>
+      </div>
+      <div class="diff-card" data-style="VS" id="style-vs">
+        <div><div class="dc-name">VS</div><div class="dc-detail">2人対戦・左に立つ人がP1、右がP2。スコアで勝負</div></div>
         <div class="dc-dot"></div>
       </div>
     </div>
@@ -497,6 +604,10 @@
     <div class="rank-badge" id="rank-badge">A</div>
     <div class="result-score" id="result-score">1250</div>
     <div class="newrecord hidden" id="newrecord">★ ニューレコード! ★</div>
+    <div class="best5-box hidden" id="multi-stats" style="max-width: 420px;">
+      <div class="best5-title">PLAYER STATS</div>
+      <div id="multi-stats-body" style="display: grid; gap: 6px;"></div>
+    </div>
     <div class="highscore-line" id="streak-result" style="color:#7CFC9A"></div>
     <div class="result-stats">
       <div class="stat-box"><div class="s-label">成功数</div><div class="s-value" id="r-hits">0</div></div>
@@ -612,7 +723,20 @@ const errorBox = $("error-box");
 let phase = "start"; // start | loading | positioning | countdown | playing | result
 let difficulty = "NORMAL";
 let gameMode = "VOLLEY"; // VOLLEY | TARGET (CONTROLは休眠中)
-let freeMode = false; // 時間制限なし・スコア記録なし・録画なし
+let playStyle = "SOLO"; // SOLO | FREE | TEAM | VS
+let freeMode = false; // 時間制限なし・スコア記録なし・録画なし(playStyle=FREEで有効)
+function isMultiplayer() { return playStyle === "TEAM" || playStyle === "VS"; }
+let players = [];              // 2人モード: [{footL, footR, head}, ...] 左に立つ人がP1
+let prevPlayersParts = [{}, {}];
+let scoresP = [0, 0];          // 2人モード: プレイヤー別スコア(TEAMでは貢献度)
+let hitsP = [0, 0];
+let perfectP = [0, 0];
+let passCountP = [0, 0];
+// 2人モード: 交差防止の担当サークル
+let playerZones = null;        // [{cx, r}, {cx, r}] ポジション確定時に記録
+let zoneWarnCounts = [0, 0];
+let playerWasOut = [false, false];
+let forcedLoser = null;        // 3回警告で退場したプレイヤー index
 let bodyParts = {}; // {footL, footR, head, shoulderL, shoulderR, thighL, thighR} 各 {x,y,speed}
 let penaltyCount = 0;
 let faultCount = 0;
@@ -679,7 +803,10 @@ let lastAnchorMs = 0;
 function trackBodyAnchors(nowMs) {
   const dtSec = Math.min(0.2, Math.max(0, (nowMs - lastAnchorMs) / 1000));
   lastAnchorMs = nowMs;
-  const feetYs = [feet.left, feet.right].filter(Boolean).map((f) => f.y);
+  const feetYs = allFeetEntries().map((e) => e.f.y);
+  if (isMultiplayer()) for (const p of players) if (p.head) {
+    headTopY = headTopY === null ? p.head.y : Math.min(p.head.y, headTopY);
+  }
   if (feetYs.length > 0) {
     const cand = Math.max(...feetYs); // 低い方の足=地面に近い
     // 地面は「足が最も低く映った位置」。ゆっくり減衰させ、立ち位置の変化に数秒で追従
@@ -926,8 +1053,10 @@ function stopCamera() {
 }
 
 /* ---------------- 骨格検出モデル ---------------- */
-async function loadModel() {
-  if (poseLandmarker) return;
+let loadedPoses = 0;
+async function loadModel(numPoses = 1) {
+  if (poseLandmarker && loadedPoses === numPoses) return;
+  if (poseLandmarker) { try { poseLandmarker.close(); } catch {} poseLandmarker = null; }
   const vision = await FilesetResolver.forVisionTasks(
     "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
   );
@@ -938,11 +1067,12 @@ async function loadModel() {
       delegate: "GPU",
     },
     runningMode: "VIDEO",
-    numPoses: 1,
+    numPoses,
     minPoseDetectionConfidence: 0.5,
     minPosePresenceConfidence: 0.5,
     minTrackingConfidence: 0.5,
   });
+  loadedPoses = numPoses;
 }
 
 /* ---------------- 座標変換 (object-fit: cover 対応) ---------------- */
@@ -995,6 +1125,10 @@ function updatePose(nowMs) {
   try {
     result = poseLandmarker.detectForVideo(video, nowMs);
   } catch { return; }
+  if (isMultiplayer()) {
+    updatePoseMulti(result, nowMs);
+    return;
+  }
   const lms = result && result.landmarks && result.landmarks[0];
   const prevParts = bodyParts;
   prevFeet = { left: feet.left, right: feet.right };
@@ -1030,6 +1164,61 @@ function updatePose(nowMs) {
   };
   feet = { left: bodyParts.footL, right: bodyParts.footR, leftSeenAt: nowMs };
   trackBodyAnchors(nowMs);
+}
+// 2人モード: 検出した全員(最大2人)の足を追跡。左に立つ人がP1。
+function updatePoseMulti(result, nowMs) {
+  const all = (result && result.landmarks ? result.landmarks : []).slice(0, 2);
+  prevFeet = { left: feet.left, right: feet.right };
+  if (all.length === 0) { players = []; feet = { left: null, right: null }; return; }
+  poseSeenAt = nowMs;
+  const dt = Math.max(16, nowMs - (feet.leftSeenAt || nowMs - 33)) / 1000;
+  const withSpeed = (cur, prev) => {
+    if (!cur) return null;
+    if (!prev) return { ...cur, speed: 0, velX: 0, velY: 0 };
+    const velX = (cur.x - prev.x) / dt;
+    const velY = (cur.y - prev.y) / dt;
+    return { ...cur, speed: Math.hypot(velX, velY), velX, velY };
+  };
+  const centerX = (lms) => {
+    const pts = [singleScreen(lms, LM.L_ANKLE), singleScreen(lms, LM.R_ANKLE), singleScreen(lms, LM.NOSE)].filter(Boolean);
+    return pts.length ? pts.reduce((a, p) => a + p.x, 0) / pts.length : canvas.width / 2;
+  };
+  const sorted = all.map((l) => ({ l, cx: centerX(l) })).sort((a, b) => a.cx - b.cx);
+  const next = [];
+  for (let pi = 0; pi < sorted.length; pi++) {
+    const lms = sorted[pi].l;
+    const prev = prevPlayersParts[pi] || {};
+    const fL = footPoint(lms, LM.L_ANKLE, LM.L_FOOT, LM.L_HEEL);
+    const fR = footPoint(lms, LM.R_ANKLE, LM.R_FOOT, LM.R_HEEL);
+    if (fL) fL.axis = { heel: singleScreen(lms, LM.L_HEEL), toe: singleScreen(lms, LM.L_FOOT) };
+    if (fR) fR.axis = { heel: singleScreen(lms, LM.R_HEEL), toe: singleScreen(lms, LM.R_FOOT) };
+    const parts = {
+      footL: withSpeed(fL, prev.footL),
+      footR: withSpeed(fR, prev.footR),
+      head: withSpeed(singleScreen(lms, LM.NOSE), prev.head),
+    };
+    prevPlayersParts[pi] = parts;
+    next.push(parts);
+  }
+  players = next;
+  // レガシー互換(地面追跡・スタート判定): P1の足をfeetへ
+  feet = { left: players[0] ? players[0].footL : null, right: players[0] ? players[0].footR : null, leftSeenAt: nowMs };
+  bodyParts = players[0] ? { head: players[0].head } : {};
+  trackBodyAnchors(nowMs);
+}
+function allFeetEntries() {
+  if (isMultiplayer()) {
+    const arr = [];
+    players.forEach((p, pi) => {
+      if (p.footL) arr.push({ f: p.footL, side: "L", pi });
+      if (p.footR) arr.push({ f: p.footR, side: "R", pi });
+    });
+    return arr;
+  }
+  const arr = [];
+  if (feet.left) arr.push({ f: feet.left, side: "L", pi: 0 });
+  if (feet.right) arr.push({ f: feet.right, side: "R", pi: 0 });
+  return arr;
 }
 function partCategory(key) {
   if (key === "footL" || key === "footR") return "FOOT";
@@ -1069,6 +1258,12 @@ function spawnBall(nowMs) {
   if (nowMs - lastSpawn < spawnIv) return;
   lastSpawn = nowMs;
   const w = canvas.width, h = canvas.height;
+  // VSモード: 左半分(P1用)と右半分(P2用)を同時に1球ずつ出す
+  if (playStyle === "VS") {
+    spawnForArea(nowMs, 0, w / 2, 0);          // P1エリア(左半分)
+    spawnForArea(nowMs, w / 2, w, 1);           // P2エリア(右半分)
+    return;
+  }
   const fromLeft = Math.random() > 0.5;
   const type = pickBallType();
   const speedFactor = cfg.speedMin + Math.random() * (cfg.speedMax - cfg.speedMin);
@@ -1102,7 +1297,7 @@ function spawnBall(nowMs) {
   // 正面から飛んでくるボール(奥行き疑似表現)
   if (Math.random() < cfg.frontRate) {
     // 目標: 検出中の足元(なければ画面下部ゾーン)
-    const feetPts = [feet.left, feet.right].filter(Boolean);
+    const feetPts = allFeetEntries().map((e) => e.f);
     let tx, ty;
     if (feetPts.length > 0) {
       const fp = feetPts[Math.floor(Math.random() * feetPts.length)];
@@ -1163,6 +1358,89 @@ function spawnBall(nowMs) {
   });
   if (type !== "BLACK") totalBalls++;
 }
+// VSモード専用: 指定エリア(xMin〜xMax)内で1球スポーンする
+function spawnForArea(nowMs, xMin, xMax, pi) {
+  const cfg = DIFFICULTY[difficulty];
+  const w = canvas.width, h = canvas.height;
+  const fromLeft = Math.random() > 0.5;
+  const type = pickBallType();
+  // 黒ボールはVSでは出現しない(スルーボーナスが帰属できないため)
+  if (type === "BLACK") return;
+  const speedFactor = cfg.speedMin + Math.random() * (cfg.speedMax - cfg.speedMin);
+  const typeSpeed = type === "BLUE" ? 1.25 : 1;
+  const flightBase = 1.78;
+  const flightTime = (flightBase - speedFactor) / typeSpeed;
+  const g = gAccel();
+  const fullRadius = BALL_RADIUS_BASE * DPR() * cfg.ballScale
+    * Math.min(1.25, Math.max(0.8, w / (420 * DPR())))
+    * (type === "GOLD" ? 0.92 : 1);
+  // 担当プレイヤーの足を優先的にターゲット
+  const pEntry = players[pi];
+  const pFoot = pEntry && (pEntry.footL || pEntry.footR);
+  // 正面ボール(エリア内に収める)
+  if (Math.random() < cfg.frontRate) {
+    let tx, ty;
+    const d = DPR();
+    const anchor2 = bodyAnchor();
+    if (pFoot) {
+      tx = Math.max(xMin + 40 * d, Math.min(xMax - 40 * d, pFoot.x + (Math.random() - 0.5) * 120 * d));
+      const lift = Math.random() < 0.55
+        ? anchor2.bodyH * (0.2 + Math.random() * 0.3)
+        : (Math.random() - 0.5) * 80 * d;
+      ty = Math.max(h * 0.35, Math.min(h * 0.95, pFoot.y - lift));
+    } else {
+      tx = xMin + (xMax - xMin) * (0.25 + Math.random() * 0.5);
+      ty = h * (0.7 + Math.random() * 0.15);
+    }
+    // 出現位置はエリア上部中央
+    // 出現位置はエリア中央(弧が相手エリアに入らない位置から出す)
+    // FRONTボールは必ずエリア中心付近から出す(弧の頂点もエリア内に収まる)
+    const sx = xMin + (xMax - xMin) * (0.3 + Math.random() * 0.4);
+    // sx はエリア中央から±20%以内なので弧でも越境しない
+    const sy = h * (0.2 + Math.random() * 0.12);
+    balls.push({
+      id: ballId++, kind: "FRONT",
+      x: sx, y: sy, vx: 0, vy: 0,
+      startX: sx, startY: sy, targetX: tx, targetY: ty,
+      p: 0, flightTime: flightTime * 1.15,
+      fullRadius, radius: fullRadius * 0.32,
+      type, active: true, spin: 0, kicked: false, kickedVx: 0, kickedVy: 0,
+      requiredPart: null, faulted: false, touchHinted: false, fade: 1,
+      ownerPi: pi, // VSモード: この球の担当プレイヤー
+    });
+    totalBalls++;
+    return;
+  }
+  // 横から飛んでくるボール(エリア内に着弾)
+  // VSモードは必ずエリア内の端から出す(弧が相手エリアに入らない)
+  // P1エリア(0〜cx): 左端(-40)か右端手前(cx-30)から出る
+  // P2エリア(cx〜w): 左端手前(cx+30)か右端(w+40)から出る
+  const areaCx = w / 2;
+  const areaLeft = pi === 0 ? -40 : areaCx + 30;
+  const areaRight = pi === 0 ? areaCx - 30 : w + 40;
+  const startX = fromLeft ? areaLeft : areaRight;
+  const anchor = bodyAnchor();
+  const startY = Math.min(h * 0.97, anchor.ground + (Math.random() * 30 - 5) * DPR());
+  // 着弾X: エリアの中心±35%以内
+  const cx = (xMin + xMax) / 2;
+  const hw = (xMax - xMin) * 0.35;
+  const targetX = Math.max(xMin + 30, Math.min(xMax - 30, cx + (Math.random() * 2 - 1) * hw));
+  const highBall = Math.random() < 0.65;
+  const rawPassY = highBall
+    ? anchor.ground - anchor.bodyH * (0.25 + Math.random() * 0.35)
+    : anchor.ground - anchor.bodyH * (0.02 + Math.random() * 0.1);
+  const passY = Math.max(h * 0.28, rawPassY);
+  const vy0 = (passY - startY - 0.5 * g * flightTime * flightTime) / flightTime;
+  const vx0 = (targetX - startX) / flightTime;
+  balls.push({
+    id: ballId++, kind: "SIDE", x: startX, y: startY, vx: vx0, vy: vy0,
+    radius: fullRadius, type, active: true, spin: 0, kicked: false, kickedVx: 0, kickedVy: 0,
+    requiredPart: null, faulted: false, touchHinted: false, fade: 1, passY,
+    ownerPi: pi, // VSモード: この球の担当プレイヤー
+  });
+  totalBalls++;
+}
+
 // 正面ボールがキック可能な進行度の窓
 const FRONT_KICK_MIN_P = 0.76;
 const FRONT_KICK_MAX_P = 1.1;
@@ -1222,10 +1500,10 @@ function updateBalls(dt, nowMs) {
           if (b.active && !b.settled && phase === "playing") {
             b.settled = true;
             b.active = false; // 以後は判定なし
-            if (b.type === "BLACK") {
+            if (b.type === "BLACK" && playStyle !== "VS") {
               const bonus = Math.round(5 * cfg.multiplier);
               score += bonus;
-              scoreVal.textContent = String(score);
+              scoreVal.textContent = playStyle === "VS" ? `${scoresP[0]} : ${scoresP[1]}` : String(score);
               popups.push({
                 x: Math.max(60, Math.min(w - 60, b.x)), y: Math.max(120, Math.min(h - 120, b.y)),
                 text: `+${bonus}`, sub: "ナイススルー!",
@@ -1271,17 +1549,31 @@ function updateBalls(dt, nowMs) {
   }
   // 画面外に出たボールを除去(未キックはミス扱い→コンボ切れ)
   balls = balls.filter((b) => {
+    // VSモード: 未蹴りのボールが担当エリアの境界(センターライン)を越えたらフェード消去
+    if (playStyle === "VS" && !b.kicked && b.active && typeof b.ownerPi === "number") {
+      const cx = w / 2;
+      const margin = 4 * DPR(); // 最小限の猶予のみ(ほぼライン到達でフェード開始)
+      const crossedLine = b.ownerPi === 0 ? b.x > cx + margin : b.x < cx - margin;
+      if (crossedLine) {
+        b.fade = Math.max(0, b.fade - 0.22); // 約0.3秒でフェードアウト(素早く消える)
+        if (b.fade <= 0) {
+          b.active = false;
+          // ミスの精算なし(コンボも切れない=相手エリアに来てしまっただけ)
+          return false;
+        }
+      }
+    }
     const out = b.shotDone
       ? b.fade <= 0
       : b.kind === "FRONT" && !b.kicked
         ? b.fade <= 0
         : (b.x < -140 || b.x > w + 140 || b.y > h + 140 || b.y < -240);
     if (out && b.active && !b.kicked && phase === "playing") {
-      if (b.type === "BLACK") {
-        // 我慢の成功に小さな報酬
+      if (b.type === "BLACK" && playStyle !== "VS") {
+        // 我慢の成功に小さな報酬(VSは帰属できないため対象外)
         const bonus = Math.round(5 * cfg.multiplier);
         score += bonus;
-        scoreVal.textContent = String(score);
+        scoreVal.textContent = playStyle === "VS" ? `${scoresP[0]} : ${scoresP[1]}` : String(score);
         popups.push({
           x: Math.max(60, Math.min(w - 60, b.x)), y: Math.max(120, Math.min(h - 120, b.y)),
           text: `+${bonus}`, sub: "ナイススルー!",
@@ -1298,13 +1590,11 @@ function updateBalls(dt, nowMs) {
   // 当たり判定
   if (phase !== "playing") return;
   if (gameMode === "VOLLEY" || gameMode === "TARGET") {
-    const hitFeet = [
-      feet.left ? { point: feet.left, side: "L", speed: feet.left.speed } : null,
-      feet.right ? { point: feet.right, side: "R", speed: feet.right.speed } : null,
-    ].filter(Boolean);
+    const hitFeet = allFeetEntries().map((e) => ({ point: e.f, side: e.side, speed: e.f.speed, pi: e.pi }));
     if (hitFeet.length === 0) return;
     for (const b of balls) {
       if (!b.active || b.kicked) continue;
+      if (b.noKickUntil && nowMs < b.noKickUntil) continue; // パス直後のクールダウン
       if (b.kind === "FRONT" && !isFrontKickable(b) && !b.dropping) continue; // まだ遠い球は判定なし(落下中は蹴れる)
       for (const f of hitFeet) {
         const dist = Math.hypot(f.point.x - b.x, f.point.y - b.y);
@@ -1315,12 +1605,17 @@ function updateBalls(dt, nowMs) {
           const frontRelief = b.kind === "FRONT" ? 0.45 : 1;
           const swinging = (f.speed || 0) >= KICK_MIN_SPEED * DPR() * frontRelief;
           if (b.type === "BLACK") {
-            if (swinging) onBlackHit(b, nowMs); // 蹴ってしまった=減点
+            if (swinging) onBlackHit(b, nowMs, f.pi); // 蹴ってしまった=減点
             else onBlackSafe(b, nowMs);         // 静止して触れただけ=セーフ
             break;
           }
           if (swinging) {
-            onKick(b, f.point, nowMs, f.side); // スイングあり=キック成立
+            onKick(b, f.point, nowMs, f.side, f.pi); // スイングあり=キック成立
+          } else if (playStyle === "TEAM" && !b.passBall && (f.speed || 0) >= KICK_MIN_SPEED * DPR() * 0.5) {
+            // 弱いインサイドタッチでもパスは成立させる(パスは柔らかい動作なので)
+            const pv = evaluatePass(b, f.point, f.pi);
+            if (pv.ok) startPass(b, f.pi, pv.pf, nowMs);
+            else onTouch(b, nowMs);
           } else {
             onTouch(b, nowMs);   // スイングなし=タッチ(無得点)
           }
@@ -1392,7 +1687,7 @@ function resolveShot(ball, nowMs, geom) {
   playComboSound(Math.max(2, combo));
   vibrate([50, 30, 80]);
   updateComboBanner();
-  scoreVal.textContent = String(score);
+  scoreVal.textContent = playStyle === "VS" ? `${scoresP[0]} : ${scoresP[1]}` : String(score);
   hitsVal.textContent = String(hits);
 }
 function onShotMiss(ball, nowMs, label) {
@@ -1422,10 +1717,65 @@ function onBlackSafe(ball, nowMs) {
   });
   playBeep(520, 0.08, 0.1);
 }
-function onBlackHit(ball, nowMs) {
+// チームモード: パス意図の判定(複数シグナルのスコア式、3点以上で成立)
+function evaluatePass(ball, foot, pi) {
+  const partner = players[1 - pi];
+  const pf = partner && (partner.footL || partner.footR);
+  if (!pf || Math.abs(pf.x - ball.x) <= 100 * DPR()) return { ok: false };
+  const partnerDir = Math.sign(pf.x - ball.x);
+  const vx = foot.velX || 0, vy = foot.velY || 0;
+  // インサイドの開き: 蹴り足のつま先が相手方向を向いている
+  let footOpen = false;
+  if (foot.axis && foot.axis.heel && foot.axis.toe) {
+    const ex = foot.axis.toe.x - foot.axis.heel.x;
+    const ey = foot.axis.toe.y - foot.axis.heel.y;
+    const len = Math.hypot(ex, ey);
+    if (len > 6) footOpen = Math.sign(ex) === partnerDir && Math.abs(ex / len) > 0.22;
+  }
+  // 蹴る方向: 横速度が小さい時はつま先の向きで補完
+  const dirFromVel = Math.abs(vx) > 70 * DPR() ? Math.sign(vx) : 0;
+  const passDir = dirFromVel !== 0 ? dirFromVel : footOpen ? partnerDir : 0;
+  if (passDir !== partnerDir) return { ok: false };
+  let pts = 0;
+  if (footOpen) pts += 2;                                             // インサイドの構え
+  if (Math.abs(vx) > Math.abs(vy) * 0.3) pts += 1;                    // 横成分がある
+  if (Math.abs(vx) > 100 * DPR()) pts += 1;                           // 相手方向へ動いている
+  if ((foot.speed || 0) < KICK_MIN_SPEED * DPR() * 1.35) pts += 1;    // 弱め=パスらしい柔らかさ
+  if (vy <= 0 || Math.abs(vy) < Math.abs(vx) * 1.6) pts += 1;         // フォローが横〜斜め上
+  return { ok: pts >= 3, pf, partnerDir };
+}
+// チームモード: ボールを味方への浮き球パスに変換する
+function startPass(ball, pi, partnerFoot, nowMs) {
+  const anchor = bodyAnchor();
+  const g = gAccel();
+  // ボレーしやすい球質: 長めの滞空でふわりと、相手の少し手前に、膝〜腰の高さへ届く
+  const T = 1.05;
+  const partnerDir = Math.sign(partnerFoot.x - ball.x) || 1;
+  const tx = partnerFoot.x - partnerDir * 70 * DPR(); // 相手の少し手前(体の前でミートできる)
+  const passY = Math.max(canvas.height * 0.3,
+    anchor.ground - anchor.bodyH * (0.28 + Math.random() * 0.08)); // 膝〜腰
+  ball.kind = "SIDE";
+  ball.kicked = false;
+  ball.active = true;
+  ball.touchHinted = false;
+  ball.dropping = false;
+  ball.late = false;
+  ball.passBall = true;
+  ball.passedBy = pi;
+  passCountP[pi]++;
+  ball.noKickUntil = nowMs + 280;
+  ball.vx = (tx - ball.x) / T;
+  ball.vy = (passY - ball.y - 0.5 * g * T * T) / T;
+  spawnBurst(ball.x, ball.y, "#7CFC9A", 12);
+  popups.push({ x: ball.x, y: ball.y - 26, text: "パス!", sub: `P${pi + 1} → P${2 - pi}`, born: nowMs, life: 750, color: "#7CFC9A" });
+  playBeep(660, 0.07, 0.1);
+  vibrate(20);
+}
+function onBlackHit(ball, nowMs, pi = 0) {
   const cfg = DIFFICULTY[difficulty];
   const penalty = Math.round(20 * cfg.multiplier);
   score = Math.max(0, score - penalty);
+  if (isMultiplayer()) scoresP[pi] = Math.max(0, scoresP[pi] - penalty);
   penaltyCount++;
   combo = 0;
   updateComboBanner();
@@ -1437,7 +1787,7 @@ function onBlackHit(ball, nowMs) {
   popups.push({ x: ball.x, y: ball.y - 20, text: `-${penalty}`, sub: "ペナルティ!", born: nowMs, life: 1000, color: "#FF4757" });
   playBuzzer();
   vibrate([80, 40, 80]);
-  scoreVal.textContent = String(score);
+  scoreVal.textContent = playStyle === "VS" ? `${scoresP[0]} : ${scoresP[1]}` : String(score);
 }
 function onFault(ball, usedCat, nowMs) {
   ball.faulted = true;
@@ -1459,7 +1809,7 @@ function playBuzzer() {
   o.connect(g).connect(audioCtx.destination);
   o.start(t); o.stop(t + 0.38);
 }
-function onKick(ball, foot, nowMs, side) {
+function onKick(ball, foot, nowMs, side, pi = 0) {
   const cfg = DIFFICULTY[difficulty];
   if (side === "L") leftHits++;
   else if (side === "R") rightHits++;
@@ -1542,17 +1892,35 @@ function onKick(ball, foot, nowMs, side) {
   }
   const perfect = (foot.speed || 0) >= PERFECT_FOOT_SPEED * DPR() * (ball.kind === "FRONT" ? 0.6 : 1);
   const base = BALL_TYPE[ball.type].points;
+  // ---- チームモード: パス意図をスコア式で判定(インサイド/横成分/弱め/斜め上フォロー) ----
+  if (playStyle === "TEAM" && !ball.passBall) {
+    const pv = evaluatePass(ball, foot, pi);
+    if (pv.ok) {
+      startPass(ball, pi, pv.pf, nowMs);
+      return;
+    }
+  }
   const late = !!ball.late; // 蹴りどきを逃した後の遅れキック: 半分の点・コンボ据え置き
-  const comboBonus = late ? 0 : combo * 5;
-  const pts = late
+  const comboBonus = late || playStyle === "VS" ? 0 : combo * 5;
+  let pts = late
     ? Math.max(1, Math.round(base * cfg.multiplier * 0.5))
     : Math.round(base * cfg.multiplier * (perfect ? 1.5 : 1) + comboBonus);
+  // チーム: パスを地面に落とさず味方がボレー → 1.5倍ボーナス
+  const passVolley = playStyle === "TEAM" && ball.passBall && ball.passedBy !== pi;
+  if (passVolley) pts = Math.round(pts * 1.5);
   score += pts;
   hits++;
-  if (!late) {
+  if (isMultiplayer()) {
+    scoresP[pi] += pts;
+    hitsP[pi]++;
+    if (perfect && !late) perfectP[pi]++;
+  }
+  if (playStyle !== "VS" && !late) {
     combo++;
     maxCombo = Math.max(maxCombo, combo);
     if (perfect) perfectCount++;
+  } else if (playStyle === "VS" && perfect && !late) {
+    perfectCount++; // 合計統計にも反映
   }
   lastHitAt = nowMs;
 
@@ -1563,11 +1931,11 @@ function onKick(ball, foot, nowMs, side) {
   ball.kickedVx = dir * (500 + Math.random() * 400) * DPR();
   ball.kickedVy = -(1400 + Math.random() * 500) * DPR();
 
-  spawnBurst(ball.x, ball.y, BALL_TYPE[ball.type].color, late ? 10 : perfect ? 26 : 16);
+  spawnBurst(ball.x, ball.y, BALL_TYPE[ball.type].color, passVolley ? 30 : late ? 10 : perfect ? 26 : 16);
   popups.push({
     x: ball.x, y: ball.y - 20,
     text: `+${pts}`,
-    sub: late ? "遅れた!" : perfect ? "PERFECT!" : (ball.type === "GOLD" ? "GOLD!" : ""),
+    sub: passVolley ? "パス→ボレー!!" : late ? "遅れた!" : perfect ? "PERFECT!" : (ball.type === "GOLD" ? "GOLD!" : ""),
     born: nowMs, life: 900,
     color: perfect ? "#FFC53D" : "#F5F8FF",
   });
@@ -1575,7 +1943,7 @@ function onKick(ball, foot, nowMs, side) {
   vibrate(perfect ? [40, 30, 60] : 35);
   if (combo > 1 && combo % 5 === 0) playComboSound(combo);
 
-  scoreVal.textContent = String(score);
+  scoreVal.textContent = playStyle === "VS" ? `${scoresP[0]} : ${scoresP[1]}` : String(score);
   hitsVal.textContent = String(hits);
   updateComboBanner();
 }
@@ -1983,6 +2351,64 @@ function drawAllParts(nowMs) {
   }
 }
 
+/* ---------------- 2人モード: 担当サークル(交差防止) ---------------- */
+function drawPlayerZones(nowMs) {
+  if (!playerZones) return;
+  const d = DPR();
+  const cx = playerZones.centerX;
+  const anyOut = playerWasOut[0] || playerWasOut[1];
+  const pulse = anyOut ? 0.6 + Math.sin(nowMs / 90) * 0.3 : 0.4;
+  ctx.save();
+  // センターライン
+  ctx.strokeStyle = anyOut ? `rgba(255,71,87,${pulse})` : `rgba(242,245,250,${pulse})`;
+  ctx.lineWidth = (anyOut ? 4 : 2.5) * d;
+  ctx.setLineDash([14 * d, 10 * d]);
+  ctx.beginPath();
+  ctx.moveTo(cx, canvas.height * 0.18);
+  ctx.lineTo(cx, canvas.height * 0.97);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // サイドラベル
+  ctx.font = `800 ${12 * d}px 'M PLUS 1', sans-serif`;
+  ctx.textAlign = "center";
+  ctx.shadowColor = "rgba(7,9,15,0.9)";
+  ctx.shadowBlur = 5 * d;
+  ctx.fillStyle = playerWasOut[0] ? "#FF4757" : "rgba(35,224,255,0.85)";
+  ctx.fillText("◀ P1 エリア", cx - 62 * d, canvas.height * 0.2);
+  ctx.fillStyle = playerWasOut[1] ? "#FF4757" : "rgba(255,197,61,0.85)";
+  ctx.fillText("P2 エリア ▶", cx + 62 * d, canvas.height * 0.2);
+  ctx.restore();
+}
+function checkPlayerZones(nowMs) {
+  if (!playerZones || !isMultiplayer() || phase !== "playing") return;
+  const cx = playerZones.centerX;
+  const margin = 25 * DPR(); // ライン付近のチラつき防止
+  players.forEach((p, pi) => {
+    const mx = playerMidX(p);
+    if (mx === null) return;
+    // P1(左)は中央より右へ、P2(右)は中央より左へ出たら違反
+    const out = pi === 0 ? mx > cx + margin : mx < cx - margin;
+    if (out && !playerWasOut[pi]) {
+      playerWasOut[pi] = true;
+      zoneWarnCounts[pi]++;
+      const n = zoneWarnCounts[pi];
+      if (n >= 3) {
+        forcedLoser = pi;
+        popups.push({ x: canvas.width / 2, y: canvas.height * 0.4, text: "レッドカード!", sub: `P${pi + 1} 退場 — ライン越え3回`, born: nowMs, life: 1600, color: "#FF4757" });
+        playBeep(220, 0.4, 0.25);
+        vibrate([120, 80, 120]);
+        setTimeout(() => { if (phase === "playing") endGame(); }, 1200);
+      } else {
+        popups.push({ x: cx + (pi === 0 ? -1 : 1) * 90 * DPR(), y: canvas.height * 0.5, text: `⚠ 警告 ${n}/3`, sub: `P${pi + 1} 自分のエリアに戻って!`, born: nowMs, life: 1200, color: "#FF9F43" });
+        playBeep(330, 0.2, 0.2);
+        vibrate(60);
+      }
+    } else if (!out && playerWasOut[pi]) {
+      playerWasOut[pi] = false;
+    }
+  });
+}
+
 /* ---------------- リプレイ(1プレイ全録画) ---------------- */
 function recorderSupported() {
   return typeof MediaRecorder !== "undefined" && recCanvas.captureStream;
@@ -2060,9 +2486,11 @@ function closeReplay() {
 
 /* ---------------- ポジショニング判定 ---------------- */
 function handlePositioning(nowMs) {
-  const bothFeet = feet.left && feet.right;
+  const ready = isMultiplayer()
+    ? players.length === 2 && players.every((p) => p.footL || p.footR)
+    : feet.left && feet.right;
   const poseAlive = nowMs - poseSeenAt < 600;
-  if (bothFeet && poseAlive) {
+  if (ready && poseAlive) {
     if (!positioningStableSince) positioningStableSince = nowMs;
     const held = nowMs - positioningStableSince;
     positioningPill.textContent = "OK! そのまま動かないで…";
@@ -2074,11 +2502,24 @@ function handlePositioning(nowMs) {
     positioningStableSince = 0;
     positioningPill.classList.remove("ok");
     positioningPill.textContent = poseAlive
-      ? "足元までカメラに映るように下がってください"
+      ? (isMultiplayer() ? "2人とも全身(足元まで)が映るように離れて立ってください" : "足元までカメラに映るように下がってください")
       : "全身がカメラに映る位置に立ってください";
   }
 }
+function playerMidX(p) {
+  const xs = [p.footL, p.footR].filter(Boolean).map((f) => f.x);
+  return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+}
 function startCountdown() {
+  // 2人モード: 画面中央のセンターラインで担当エリアを分ける(P1=左/P2=右)
+  if (isMultiplayer() && players.length === 2) {
+    playerZones = { centerX: canvas.width / 2 };
+    zoneWarnCounts = [0, 0];
+    playerWasOut = [false, false];
+    forcedLoser = null;
+  } else {
+    playerZones = null;
+  }
   phase = "countdown";
   hide(positioningMsg);
   show(countdownEl);
@@ -2110,12 +2551,15 @@ function beginPlay() {
   leftHits = 0; rightHits = 0; reactionTimes = [];
   goalOnTarget = 0; goalFrameIn = 0;
   formShotCount = 0; formAlignCount = 0;
+  scoresP = [0, 0]; hitsP = [0, 0]; perfectP = [0, 0]; passCountP = [0, 0];
+  players = []; prevPlayersParts = [{}, {}];
+  zoneWarnCounts = [0, 0]; playerWasOut = [false, false]; forcedLoser = null;
   rerollTarget();
   if (!freeMode) startRecording();
   balls = []; particles = []; popups = [];
   timeRemaining = freeMode ? Infinity : cfg.timeLimit;
   lastSpawn = performance.now() - cfg.spawnInterval + 600; // 最初のボールは0.6秒後
-  scoreVal.textContent = "0";
+  scoreVal.textContent = playStyle === "VS" ? "0 : 0" : "0";
   hitsVal.textContent = "0";
   timeVal.textContent = freeMode ? "∞" : String(timeRemaining);
   hudTime.classList.remove("warn");
@@ -2163,8 +2607,24 @@ function endGame() {
   const diffName = DIFF_NAME[difficulty] || difficulty;
   const modeName = gameMode === "TARGET" ? "ゴールターゲット" : "ミートシュート";
   lastResultSummary = `⚽${modeName}(${diffName})で ${score}点・ランク${rank}!最大${maxCombo}コンボ` + (avgReact !== null ? `・平均反応${avgReact.toFixed(2)}秒` : "");
-  if (freeMode) {
-    hide($("newrecord")); // フリーモードは時間無制限のため記録対象外
+  if (playStyle === "VS") {
+    // VS: 勝敗を表示(退場者がいれば相手の勝ち)
+    const winner = forcedLoser !== null
+      ? (forcedLoser === 0 ? "P2 WIN" : "P1 WIN")
+      : scoresP[0] === scoresP[1] ? "DRAW" : scoresP[0] > scoresP[1] ? "P1 WIN" : "P2 WIN";
+    $("rank-badge").textContent = winner === "DRAW" ? "=" : winner.startsWith("P1") ? "P1" : "P2";
+    $("result-score").textContent = `${scoresP[0]} : ${scoresP[1]}`;
+    lastResultSummary = `⚽VSモード ${scoresP[0]} : ${scoresP[1]} — ${winner === "DRAW" ? "引き分け!" : winner.replace(" WIN", "の勝ち!")}`
+      + (forcedLoser !== null ? `(P${forcedLoser + 1}がエリア違反3回で退場)` : "");
+    if (forcedLoser !== null) {
+      $("streak-result").textContent = `🟥 P${forcedLoser + 1} はエリア違反3回で退場`;
+    }
+    hide($("newrecord"));
+  } else if (playStyle === "TEAM") {
+    lastResultSummary = `⚽チームモードで合計 ${score}点!(P1: ${scoresP[0]} / P2: ${scoresP[1]}・パス${passCountP[0] + passCountP[1]}本)`;
+    hide($("newrecord"));
+  } else if (freeMode) {
+    hide($("newrecord")); // フリーは記録対象外(比較が成立しないため)
   } else {
     const prev = getHighScore(difficulty);
     if (score > prev) {
@@ -2174,6 +2634,24 @@ function endGame() {
       hide($("newrecord"));
     }
     pushScoreHistory(gameMode, difficulty, score);
+  }
+  // 2人モード: プレイヤー別統計
+  const multiBox = $("multi-stats");
+  if (isMultiplayer()) {
+    const rateP = (pi) => (totalBalls > 0 ? Math.round((hitsP[pi] / totalBalls) * 100) : 0);
+    const rows = [0, 1].map((pi) => {
+      const color = pi === 0 ? "#23E0FF" : "#FFC53D";
+      const passPart = playStyle === "TEAM" ? ` / パス ${passCountP[pi]}` : "";
+      return `<div style="display:flex; align-items:center; gap:10px; font-size:12.5px;">
+        <b style="color:${color}; width:26px;">P${pi + 1}</b>
+        <span style="color:var(--white); font-weight:800;">${scoresP[pi]}点</span>
+        <span style="color:var(--mute);">成功 ${hitsP[pi]} / 成功率 ${rateP(pi)}% / PERFECT ${perfectP[pi]}${passPart}</span>
+      </div>`;
+    }).join("");
+    $("multi-stats-body").innerHTML = rows;
+    multiBox.classList.remove("hidden");
+  } else {
+    multiBox.classList.add("hidden");
   }
   const alignBox = $("align-box");
   if (gameMode === "TARGET" && formShotCount > 0) {
@@ -2220,7 +2698,7 @@ async function startGameFlow() {
     $("loading-text").textContent = "カメラを起動しています…";
     await startCamera();
     $("loading-text").textContent = "AIモデルを読み込んでいます…";
-    await loadModel();
+    await loadModel(isMultiplayer() ? 2 : 1);
   } catch (err) {
     console.error(err);
     setScreen("difficulty");
@@ -2271,6 +2749,7 @@ function loop(nowMs) {
     handlePositioning(nowMs);
   }
   if (phase === "playing") {
+    checkPlayerZones(nowMs);
     spawnBall(nowMs);
     if (combo > 0 && nowMs - lastHitAt > COMBO_TIMEOUT) {
       combo = 0;
@@ -2286,8 +2765,27 @@ function loop(nowMs) {
   for (const b of balls) drawBall(b);
   if (gameMode === "TARGET" && (phase === "playing" || phase === "countdown")) drawGoal(nowMs);
   if (gameMode !== "CONTROL" || phase === "positioning") {
-    drawFoot(feet.left, nowMs);
-    drawFoot(feet.right, nowMs);
+    if (isMultiplayer()) {
+      drawPlayerZones(nowMs);
+      players.forEach((p, pi) => {
+        if (p.footL) drawFoot(p.footL, nowMs);
+        if (p.footR) drawFoot(p.footR, nowMs);
+        const anyFoot = p.footL || p.footR;
+        if (anyFoot && p.head) {
+          ctx.save();
+          ctx.font = `800 ${13 * DPR()}px 'M PLUS 1', sans-serif`;
+          ctx.textAlign = "center";
+          ctx.fillStyle = pi === 0 ? "#23E0FF" : "#FFC53D";
+          ctx.shadowColor = "rgba(7,9,15,0.9)";
+          ctx.shadowBlur = 5 * DPR();
+          ctx.fillText(`P${pi + 1}`, p.head.x, p.head.y - 34 * DPR());
+          ctx.restore();
+        }
+      });
+    } else {
+      drawFoot(feet.left, nowMs);
+      drawFoot(feet.right, nowMs);
+    }
   } else {
     drawAllParts(nowMs);
   }
@@ -2314,6 +2812,16 @@ function openDifficultyScreen(mode) {
   $("diff-mode-label").textContent = meta.eyebrow;
   $("diff-mode-title").textContent = meta.title;
   $("diff-mode-desc").textContent = meta.desc;
+  // 2人モードはミートシュート専用(ゴールターゲットはキーパー駆け引きが1人用設計のため)
+  const multiCards = [$("style-team"), $("style-vs")];
+  const hideMulti = mode === "TARGET";
+  multiCards.forEach((c) => c.classList.toggle("hidden", hideMulti));
+  if (hideMulti && isMultiplayer()) {
+    document.querySelectorAll("#style-row .diff-card").forEach((c) => c.classList.remove("selected"));
+    document.querySelector('#style-row .diff-card[data-style="SOLO"]').classList.add("selected");
+    playStyle = "SOLO";
+    freeMode = false;
+  }
   refreshHighScoreLine();
   setScreen("difficulty");
 }
@@ -2338,11 +2846,15 @@ document.querySelectorAll("#difficulty-row .diff-card").forEach((card) => {
     playBeep(740, 0.08, 0.1);
   });
 });
-$("free-mode-card").addEventListener("click", () => {
-  freeMode = !freeMode;
-  $("free-mode-card").classList.toggle("selected", freeMode);
-  initAudio();
-  playBeep(freeMode ? 820 : 500, 0.08, 0.1);
+document.querySelectorAll("#style-row .diff-card").forEach((card) => {
+  card.addEventListener("click", () => {
+    document.querySelectorAll("#style-row .diff-card").forEach((c) => c.classList.remove("selected"));
+    card.classList.add("selected");
+    playStyle = card.dataset.style;
+    freeMode = playStyle === "FREE";
+    initAudio();
+    playBeep(820, 0.08, 0.1);
+  });
 });
 $("start-btn").addEventListener("click", startGameFlow);
 $("replay-btn").addEventListener("click", async () => {
