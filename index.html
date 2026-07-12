@@ -2386,28 +2386,39 @@ function drawPlayerZones(nowMs) {
 }
 function checkPlayerZones(nowMs) {
   if (!playerZones || !isMultiplayer() || phase !== "playing") return;
+  // チームモード: パスのために相手エリアに踏み込む動作は正当なプレー → 警告なし
+  // センターライン規制はVSモード専用
+  if (playStyle !== "VS") return;
   const cx = playerZones.centerX;
-  const margin = 25 * DPR(); // ライン付近のチラつき防止
+  const margin = 45 * DPR(); // 広めのマージン(素早い踏み込みはセーフ)
   players.forEach((p, pi) => {
     const mx = playerMidX(p);
     if (mx === null) return;
-    // P1(左)は中央より右へ、P2(右)は中央より左へ出たら違反
+    // P1(左)は中央より右へ、P2(右)は中央より左へ継続して入ったら違反
     const out = pi === 0 ? mx > cx + margin : mx < cx - margin;
     if (out && !playerWasOut[pi]) {
       playerWasOut[pi] = true;
-      zoneWarnCounts[pi]++;
-      const n = zoneWarnCounts[pi];
-      if (n >= 3) {
-        forcedLoser = pi;
-        popups.push({ x: canvas.width / 2, y: canvas.height * 0.4, text: "レッドカード!", sub: `P${pi + 1} 退場 — ライン越え3回`, born: nowMs, life: 1600, color: "#FF4757" });
-        playBeep(220, 0.4, 0.25);
-        vibrate([120, 80, 120]);
-        setTimeout(() => { if (phase === "playing") endGame(); }, 1200);
-      } else {
-        popups.push({ x: cx + (pi === 0 ? -1 : 1) * 90 * DPR(), y: canvas.height * 0.5, text: `⚠ 警告 ${n}/3`, sub: `P${pi + 1} 自分のエリアに戻って!`, born: nowMs, life: 1200, color: "#FF9F43" });
-        playBeep(330, 0.2, 0.2);
-        vibrate(60);
-      }
+      // 300ms後もまだ越えていたら警告確定(素早い踏み込みは無視)
+      const capturedPi = pi;
+      setTimeout(() => {
+        if (phase !== "playing" || !playerZones) return;
+        const mxNow = playerMidX(players[capturedPi]);
+        const stillOut = capturedPi === 0 ? mxNow > cx + margin : mxNow < cx - margin;
+        if (!stillOut) { playerWasOut[capturedPi] = false; return; } // 戻っていたらセーフ
+        zoneWarnCounts[capturedPi]++;
+        const n = zoneWarnCounts[capturedPi];
+        if (n >= 3) {
+          forcedLoser = capturedPi;
+          popups.push({ x: canvas.width / 2, y: canvas.height * 0.4, text: "レッドカード!", sub: `P${capturedPi + 1} 退場 — ライン越え3回`, born: nowMs, life: 1600, color: "#FF4757" });
+          playBeep(220, 0.4, 0.25);
+          vibrate([120, 80, 120]);
+          setTimeout(() => { if (phase === "playing") endGame(); }, 1200);
+        } else {
+          popups.push({ x: cx + (capturedPi === 0 ? -1 : 1) * 90 * DPR(), y: canvas.height * 0.5, text: `⚠ 警告 ${n}/3`, sub: `P${capturedPi + 1} 自分のエリアに戻って!`, born: nowMs, life: 1200, color: "#FF9F43" });
+          playBeep(330, 0.2, 0.2);
+          vibrate(60);
+        }
+      }, 300);
     } else if (!out && playerWasOut[pi]) {
       playerWasOut[pi] = false;
     }
