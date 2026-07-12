@@ -2071,35 +2071,82 @@ function drawBall(b) {
     ctx.globalAlpha *= 0.55 + 0.45 * (b.p / FRONT_KICK_MIN_P);
   }
   const t = BALL_TYPE[b.type];
-  // グロー
+  const R = b.radius;
+  // 色設計: ベース(パネル色)と五角形パッチ色・縫い目色
+  const isBlack = b.type === "BLACK";
+  const baseTop = isBlack ? "#2A2D36" : "#FFFFFF";
+  const baseMid = isBlack ? "#17191F" : t.color;
+  const baseEdge = isBlack ? "#0B0C10" : b.type === "NORMAL" ? "#C7CFDD" : t.color;
+  const patchCol = b.type === "GOLD" ? "#4A3200" : isBlack ? "#050608" : "#14161E";
+  const seamCol = isBlack ? "rgba(255,71,87,0.45)" : "rgba(10,12,18,0.45)";
+  // グロー(タイプ色のオーラは維持)
   ctx.shadowColor = t.glow;
   ctx.shadowBlur = 24;
-  // 本体
-  const grad = ctx.createRadialGradient(-b.radius * 0.35, -b.radius * 0.35, b.radius * 0.1, 0, 0, b.radius);
-  grad.addColorStop(0, "#FFFFFF");
-  grad.addColorStop(0.55, t.color);
-  grad.addColorStop(1, b.type === "NORMAL" ? "#B9C4D8" : t.color);
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.arc(0, 0, b.radius, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.fillStyle = baseMid;
+  ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
   ctx.shadowBlur = 0;
-  // サッカーボール風の五角形パッチ
-  ctx.fillStyle = b.type === "GOLD" ? "rgba(120,80,0,0.8)" : b.type === "BLACK" ? "rgba(255,71,87,0.55)" : "rgba(11,16,38,0.85)";
-  const pent = (cx, cy, r) => {
+
+  // ---- ここから球にクリップしてクラシックなパネルを描く ----
+  ctx.save();
+  ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.clip();
+  // ベースの球面グラデ(左上ハイライト → 右下シェード)
+  const grad = ctx.createRadialGradient(-R * 0.38, -R * 0.42, R * 0.08, 0, 0, R * 1.15);
+  grad.addColorStop(0, baseTop);
+  grad.addColorStop(0.5, baseMid);
+  grad.addColorStop(1, baseEdge);
+  ctx.fillStyle = grad;
+  ctx.fillRect(-R, -R, R * 2, R * 2);
+
+  // 五角形パス(回転指定つき)
+  const pentPath = (cx2, cy2, r2, rot) => {
     ctx.beginPath();
     for (let i = 0; i < 5; i++) {
-      const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
-      const px = cx + Math.cos(a) * r, py = cy + Math.sin(a) * r;
+      const a = rot + (i * 2 * Math.PI) / 5;
+      const px = cx2 + Math.cos(a) * r2, py = cy2 + Math.sin(a) * r2;
       i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
     }
-    ctx.closePath(); ctx.fill();
+    ctx.closePath();
   };
-  pent(0, 0, b.radius * 0.34);
+  ctx.fillStyle = patchCol;
+  ctx.strokeStyle = seamCol;
+  ctx.lineWidth = Math.max(1, R * 0.045);
+  // 中央の五角形
+  pentPath(0, 0, R * 0.32, -Math.PI / 2);
+  ctx.fill(); ctx.stroke();
+  // 縁で切れる5つの五角形(頂点の間=36°ずらした位置、外向きに回転)
+  for (let i = 0; i < 5; i++) {
+    const a = -Math.PI / 2 + Math.PI / 5 + (i * 2 * Math.PI) / 5;
+    const px = Math.cos(a) * R * 0.92, py = Math.sin(a) * R * 0.92;
+    pentPath(px, py, R * 0.34, a); // 外側を向いた五角形が円でクリップされ、球の回り込みに見える
+    ctx.fill(); ctx.stroke();
+  }
+  // 縫い目(シーム): 中央五角形の各頂点 → 縁の五角形の間へ
+  ctx.strokeStyle = seamCol;
+  ctx.lineWidth = Math.max(1, R * 0.035);
   for (let i = 0; i < 5; i++) {
     const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
-    pent(Math.cos(a) * b.radius * 0.78, Math.sin(a) * b.radius * 0.78, b.radius * 0.2);
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * R * 0.32, Math.sin(a) * R * 0.32);
+    ctx.lineTo(Math.cos(a) * R * 1.0, Math.sin(a) * R * 1.0);
+    ctx.stroke();
   }
+  // 球面の陰影(右下に落ちる影)とハイライト(左上のツヤ)
+  const shade = ctx.createRadialGradient(-R * 0.3, -R * 0.35, R * 0.2, R * 0.15, R * 0.2, R * 1.35);
+  shade.addColorStop(0, "rgba(255,255,255,0)");
+  shade.addColorStop(0.72, "rgba(0,0,0,0)");
+  shade.addColorStop(1, "rgba(0,0,0,0.4)");
+  ctx.fillStyle = shade;
+  ctx.fillRect(-R, -R, R * 2, R * 2);
+  const gloss = ctx.createRadialGradient(-R * 0.42, -R * 0.48, 0, -R * 0.42, -R * 0.48, R * 0.55);
+  gloss.addColorStop(0, isBlack ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.75)");
+  gloss.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = gloss;
+  ctx.fillRect(-R, -R, R * 2, R * 2);
+  ctx.restore();
+  // 輪郭
+  ctx.strokeStyle = isBlack ? "rgba(255,71,87,0.35)" : "rgba(10,12,18,0.35)";
+  ctx.lineWidth = Math.max(1, R * 0.03);
+  ctx.beginPath(); ctx.arc(0, 0, R - ctx.lineWidth / 2, 0, Math.PI * 2); ctx.stroke();
   ctx.restore();
 }
 function drawFoot(f, nowMs) {
