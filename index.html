@@ -333,7 +333,7 @@
     letter-spacing: .3em; text-shadow: 0 0 12px rgba(35,224,255,.7);
   }
 
-  #flip-btn, #quit-btn {
+  #quit-btn {
     position: absolute; z-index: 15;
     bottom: calc(env(safe-area-inset-bottom) + 16px);
     background: var(--navy-glass);
@@ -343,9 +343,8 @@
     border-radius: 999px; padding: 10px 18px; cursor: pointer;
     backdrop-filter: blur(6px);
   }
-  #flip-btn { right: 14px; }
   #quit-btn { left: 14px; }
-  #flip-btn.hidden, #quit-btn.hidden { display: none; }
+  #quit-btn.hidden { display: none; }
 
   /* ポジショニングガイド */
   #positioning-msg {
@@ -448,7 +447,6 @@
   <div id="positioning-msg" class="hidden"><span class="msg-pill" id="positioning-pill">両足がカメラに映る位置に立ってください</span></div>
   <div id="countdown" class="hidden"><span id="countdown-num">3</span></div>
 
-  <button id="flip-btn" class="hidden">カメラ切替</button>
   <button id="quit-btn" class="hidden">やめる</button>
 
   <!-- リプレイ再生オーバーレイ -->
@@ -721,7 +719,7 @@ const hudTime = $("hud-time");
 const comboBanner = $("combo-banner"), comboNum = $("combo-num");
 const positioningMsg = $("positioning-msg"), positioningPill = $("positioning-pill");
 const countdownEl = $("countdown"), countdownNum = $("countdown-num");
-const flipBtn = $("flip-btn"), quitBtn = $("quit-btn");
+const quitBtn = $("quit-btn");
 const errorBox = $("error-box");
 
 /* ---------------- 状態 ---------------- */
@@ -835,7 +833,7 @@ function goalGeometry() {
   // 画面下・後ろ向きのゴール(カメラの手前にゴールがあり、プレイヤーはこちらへ蹴り込む)
   // 高さを基準に幅を決める: 横画面でもゴールが横に伸びすぎず、キーパーの守備範囲が保たれる
   const w = canvas.width, h = canvas.height;
-  const gh = h * 0.16;                       // マウスの高さ(画面高基準)
+  const gh = h * 0.19;                       // マウスの高さ(画面高基準)
   const gw = Math.min(w * 0.84, gh * 4.2);   // 幅は高さの4.2倍まで(実物比3:1に近い範囲)
   const gx = (w - gw) / 2;
   const gy = h * 0.88 - gh;                  // マウス上辺
@@ -1274,7 +1272,17 @@ function spawnBall(nowMs) {
   const startX = fromLeft ? -40 : w + 40;
   const anchor = bodyAnchor();
   const startY = Math.min(h * 0.97, anchor.ground + (Math.random() * 30 - 5) * DPR());
-  let targetX = w * (0.3 + Math.random() * 0.4);
+  // 着地(ボレー高さのピーク)は実際に検出した足の位置を基準にする。
+  // 画面中央固定だと、プレイヤーが端寄りに立っている場合そこではまだ低い
+  // 「小さいロブで蹴れない」球になってしまうため、足の位置に追従させる。
+  const feetForTarget = allFeetEntries().map((e) => e.f);
+  let targetX;
+  if (feetForTarget.length > 0) {
+    const fp = feetForTarget[Math.floor(Math.random() * feetForTarget.length)];
+    targetX = Math.max(w * 0.08, Math.min(w * 0.92, fp.x + (Math.random() - 0.5) * 160 * DPR()));
+  } else {
+    targetX = w * (0.15 + Math.random() * 0.7); // 未検出時は画面全体に広めに散らす
+  }
   let apexY = h * (0.28 + Math.random() * 0.25);
   let requiredPart = null;
   if (gameMode === "CONTROL" && type !== "BLACK") {
@@ -1871,7 +1879,7 @@ function onKick(ball, foot, nowMs, side, pi = 0) {
 
     // ---- キーパーの反応: シュートへ物理的にダイブ(v21方式: 弱い球ほど遠くまで届く) ----
     const keeperStandX = geom.gx + targetZone * zw + zw / 2;
-    const reach = zw * 0.35 + Math.max(0, shotTime - 0.42) * geom.gw * 1.45;
+    const reach = zw * 0.55 + Math.max(0, shotTime - 0.42) * geom.gw * 1.8;
     const inFrame = landX >= geom.gx && landX <= geom.gx + geom.gw;
     const willBeSaved = inFrame && Math.abs(landX - keeperStandX) <= reach;
     ball.willBeSaved = willBeSaved;
@@ -2214,72 +2222,109 @@ function drawParticles() {
   }
 }
 
-function drawGoal(nowMs) {
+let goalCache = null;
+let goalCacheKey = "";
+function renderGoalCache(geom) {
+  const key = `${canvas.width}x${canvas.height}`;
+  if (goalCache && goalCacheKey === key) return;
+  goalCacheKey = key;
+  goalCache = document.createElement("canvas");
+  goalCache.width = canvas.width;
+  goalCache.height = canvas.height;
+  const g = goalCache.getContext("2d");
   const d = DPR();
-  const geom = goalGeometry();
   const { gx, gy, gw, gh, cols, bx, by, bw } = geom;
   const mouthBottom = gy + gh;
-  ctx.save();
-  ctx.globalAlpha = 0.55; // ゴール全体を透過(プレー視界を遮らない)
 
-  // --- ネット(奥のマウス → 手前の背面フレームへ広がるメッシュ) ---
-  ctx.strokeStyle = "rgba(245,248,255,0.4)";
-  ctx.lineWidth = 1 * d;
-  const meshN = 12;
-  for (let i = 0; i <= meshN; i++) {
-    const t = i / meshN;
-    const mxp = gx + gw * t;          // マウス上の点
-    const bxp = bx + bw * t;          // 背面フレーム上の点
-    ctx.beginPath(); ctx.moveTo(mxp, mouthBottom); ctx.lineTo(bxp, by); ctx.stroke();
-  }
-  for (let j = 0; j <= 4; j++) {
-    const t = j / 4;
-    const y1 = mouthBottom + (by - mouthBottom) * t;
-    const x1 = gx + (bx - gx) * t;
-    const x2 = gx + gw + (bx + bw - (gx + gw)) * t;
-    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y1); ctx.stroke();
-  }
-  // マウス面(開口部)の内側の網
-  for (let i = 1; i < meshN; i++) {
-    const xx = gx + (gw * i) / meshN;
-    ctx.beginPath(); ctx.moveTo(xx, gy); ctx.lineTo(xx, mouthBottom); ctx.stroke();
-  }
-  for (let j = 1; j <= 2; j++) {
-    const yy = gy + (gh * j) / 3;
-    ctx.beginPath(); ctx.moveTo(gx, yy); ctx.lineTo(gx + gw, yy); ctx.stroke();
-  }
+  // --- 六角形ネットメッシュ(クリップ領域を指定して敷き詰める) ---
+  const hexField = (clipFn, r, alpha, lw) => {
+    g.save();
+    g.beginPath(); clipFn(); g.clip();
+    g.strokeStyle = `rgba(238,243,250,${alpha})`;
+    g.lineWidth = lw;
+    const dx = r * Math.sqrt(3), dy = r * 1.5;
+    // クリップ範囲は広めに走査(ゴール全域)
+    for (let row = 0, y = gy - r; y < by + r * 2; y += dy, row++) {
+      const off = row % 2 ? dx / 2 : 0;
+      for (let x = bx - r + off; x < bx + bw + r; x += dx) {
+        g.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = Math.PI / 6 + (i * Math.PI) / 3;
+          const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r;
+          i === 0 ? g.moveTo(px, py) : g.lineTo(px, py);
+        }
+        g.closePath(); g.stroke();
+      }
+    }
+    g.restore();
+  };
+  // 奥(マウス面): 細かい網
+  hexField(() => g.rect(gx, gy, gw, gh), 6.5 * d, 0.32, 1 * d);
+  // 手前(床の台形): 粗い網 — 近いほど目が大きい遠近感
+  hexField(() => {
+    g.moveTo(gx, mouthBottom); g.lineTo(gx + gw, mouthBottom);
+    g.lineTo(bx + bw, by); g.lineTo(bx, by); g.closePath();
+  }, 11 * d, 0.22, 1.2 * d);
+  // 左右の側面ネット(三角形)
+  hexField(() => {
+    g.moveTo(gx, gy); g.lineTo(gx, mouthBottom); g.lineTo(bx, by); g.closePath();
+  }, 9 * d, 0.18, 1 * d);
+  hexField(() => {
+    g.moveTo(gx + gw, gy); g.lineTo(gx + gw, mouthBottom); g.lineTo(bx + bw, by); g.closePath();
+  }, 9 * d, 0.18, 1 * d);
 
-  // --- ゾーンガイド(左・中央・右、薄い区切りのみ) ---
+  // --- ゾーンガイド(左・中央・右の薄い区切り) ---
   const zw = gw / cols;
-  ctx.strokeStyle = "rgba(245,248,255,0.22)";
-  ctx.lineWidth = 1.5 * d;
-  ctx.setLineDash([5 * d, 7 * d]);
+  g.strokeStyle = "rgba(180,190,205,0.22)";
+  g.lineWidth = 1.5 * d;
+  g.setLineDash([5 * d, 7 * d]);
   for (let c = 1; c < cols; c++) {
-    const zx = gx + c * zw;
-    ctx.beginPath(); ctx.moveTo(zx, gy); ctx.lineTo(zx, mouthBottom); ctx.stroke();
+    g.beginPath(); g.moveTo(gx + c * zw, gy); g.lineTo(gx + c * zw, mouthBottom); g.stroke();
   }
-  ctx.setLineDash([]);
+  g.setLineDash([]);
 
-  // --- ゴールフレーム(白いクロスバー+両ポスト: マウス側) ---
-  ctx.strokeStyle = "#FFFFFF";
-  ctx.lineCap = "round";
-  ctx.lineWidth = 5 * d;
-  ctx.shadowColor = "rgba(245,248,255,0.5)";
-  ctx.shadowBlur = 8 * d;
-  ctx.beginPath(); ctx.moveTo(gx - 2 * d, gy); ctx.lineTo(gx + gw + 2 * d, gy); ctx.stroke(); // クロスバー
-  ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx, mouthBottom); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(gx + gw, gy); ctx.lineTo(gx + gw, mouthBottom); ctx.stroke();
-  ctx.shadowBlur = 0;
-  // 背面フレーム(手前側、太め・薄め)
-  ctx.strokeStyle = "rgba(255,255,255,0.5)";
-  ctx.lineWidth = 7 * d;
-  ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + bw, by); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(gx, mouthBottom); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(bx + bw, by); ctx.lineTo(gx + gw, mouthBottom); ctx.stroke();
+  // --- 白い丸パイプのフレーム(2トーンで円柱の質感) ---
+  const tube = (x1, y1, x2, y2, w) => {
+    g.lineCap = "round";
+    g.strokeStyle = "rgba(110,120,135,0.92)"; // グレイ影側
+    g.lineWidth = w;
+    g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+    g.strokeStyle = "#D8DDE5"; // グレイがかった白ハイライト
+    g.lineWidth = w * 0.55;
+    const off = w * 0.14;
+    g.beginPath(); g.moveTo(x1 - off * 0.3, y1 - off); g.lineTo(x2 - off * 0.3, y2 - off); g.stroke();
+  };
+  // マウス側(奥): クロスバーと両ポスト
+  tube(gx - 3 * d, gy, gx + gw + 3 * d, gy, 6.5 * d);
+  tube(gx, gy, gx, mouthBottom, 6 * d);
+  tube(gx + gw, gy, gx + gw, mouthBottom, 6 * d);
+  // 手前(背面): 地面のバー+両サイドの斜めパイプ+短い後方支柱
+  tube(bx, by, bx + bw, by, 8 * d);
+  tube(gx, mouthBottom, bx, by, 6 * d);
+  tube(gx + gw, mouthBottom, bx + bw, by, 6 * d);
+  const stub = gh * 0.5;
+  tube(bx, by, bx + 4 * d, by - stub, 6 * d);
+  tube(bx + bw, by, bx + bw - 4 * d, by - stub, 6 * d);
+  // 上部のネット吊りロープ(ポスト上端 → 後方支柱の頭、少し垂れる)
+  g.strokeStyle = "rgba(180,190,205,0.5)";
+  g.lineWidth = 1.4 * d;
+  g.beginPath();
+  g.moveTo(gx, gy);
+  g.quadraticCurveTo((gx + bx) / 2, (gy + by - stub) / 2 + 14 * d, bx + 4 * d, by - stub);
+  g.stroke();
+  g.beginPath();
+  g.moveTo(gx + gw, gy);
+  g.quadraticCurveTo((gx + gw + bx + bw) / 2, (gy + by - stub) / 2 + 14 * d, bx + bw - 4 * d, by - stub);
+  g.stroke();
+}
 
+function drawGoal(nowMs) {
+  const geom = goalGeometry();
+  renderGoalCache(geom);
+  ctx.save();
+  ctx.globalAlpha = 0.6; // ゴール全体を透過(プレー視界を遮らない)
+  ctx.drawImage(goalCache, 0, 0);
   ctx.restore();
-
-  // --- キーパー(半透明シルエット、左右にゆらぎ) ---
   drawKeeper(nowMs, geom);
   drawFormHint(nowMs, geom);
 }
@@ -2316,59 +2361,81 @@ function drawKeeper(nowMs, geom) {
     const t = (nowMs - keeperDive.start) / keeperDive.dur;
     if (t <= 1.6) {
       const p = Math.min(1, t);
-      const ease = 1 - (1 - p) * (1 - p); // easeOut
+      const ease = 1 - (1 - p) * (1 - p);
       cx = keeperDive.fromX + (keeperDive.toX - keeperDive.fromX) * ease;
     } else {
-      keeperDive = null; // ダイブ終了 → 立ち位置に戻る
+      keeperDive = null;
     }
   }
-  const catching = nowMs - keeperCatchAt < 450; // セーブ直後は腕を広げる
-  const kh = gh * 0.9;              // キーパーの身長(クロスバーより低い=実物の比率)
+  const catching = nowMs - keeperCatchAt < 450;
+  const kh = gh * 1.05;             // 少し頭がクロスバーから出るくらい
   const baseY = gy + gh;            // 足元 = マウス下辺
-  const headR = kh * 0.13;
-  ctx.save();
+  const headR = kh * 0.115;
   const headY = baseY - kh + headR;
-  const shoulderY = headY + headR * 1.7;
-  const hipY = baseY - kh * 0.38;
-  const armSpan = catching ? kh * 0.52 : kh * 0.34;
-  const armY = catching ? shoulderY - kh * 0.12 : shoulderY + kh * 0.1;
-  // 骨格を2パスで描く: 1周目=暗い縁取り(明るい映像上での視認性)、2周目=本体
-  const drawSkeleton = () => {
-    ctx.beginPath(); ctx.arc(cx, headY, headR, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx, shoulderY); ctx.lineTo(cx, hipY); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx, shoulderY + 4 * d); ctx.lineTo(cx - armSpan, armY); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx, shoulderY + 4 * d); ctx.lineTo(cx + armSpan, armY); ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx - armSpan, armY, headR * 0.5, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx + armSpan, armY, headR * 0.5, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx, hipY); ctx.lineTo(cx - kh * 0.16, baseY); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx, hipY); ctx.lineTo(cx + kh * 0.16, baseY); ctx.stroke();
-  };
-  // 1周目: 暗い縁取り
-  ctx.globalAlpha = catching ? 0.9 : 0.75;
-  ctx.strokeStyle = "rgba(7,9,15,0.85)";
-  ctx.lineWidth = 8 * d;
-  ctx.lineCap = "round";
-  ctx.shadowBlur = 0;
-  drawSkeleton();
-  // 2周目: 本体(明るいシアン)
-  ctx.strokeStyle = "#7BE9FF";
-  ctx.lineWidth = 4.5 * d;
-  ctx.shadowColor = "rgba(95,217,255,0.9)";
-  ctx.shadowBlur = 14 * d;
-  drawSkeleton();
-  // 頭とグローブの塗り
-  ctx.fillStyle = "rgba(123,233,255,0.5)";
-  ctx.beginPath(); ctx.arc(cx, headY, headR, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(cx - armSpan, armY, headR * 0.5, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(cx + armSpan, armY, headR * 0.5, 0, Math.PI * 2); ctx.fill();
+  const shoulderY = headY + headR * 1.6;
+  const hipY = baseY - kh * 0.42;
+  const shoulderW = kh * 0.30;
+  const hipW = kh * 0.20;
+  const armSpan = catching ? kh * 0.62 : kh * 0.52; // 写真のように大きく広げた構え
+  const armY = catching ? shoulderY - kh * 0.10 : shoulderY + kh * 0.02;
 
-  // 「GK」ラベル
-  ctx.shadowColor = "rgba(7,9,15,0.9)";
-  ctx.shadowBlur = 5 * d;
+  ctx.save();
+  ctx.globalAlpha = catching ? 0.92 : 0.78;
+  ctx.shadowColor = "rgba(31,224,216,0.9)";
+  ctx.shadowBlur = 18 * d;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  // エメラルドグリーン(#1FE0D8)の半透明グラデ
+  const grad = ctx.createLinearGradient(0, baseY - kh, 0, baseY);
+  grad.addColorStop(0, "rgba(31,224,216,0.48)");
+  grad.addColorStop(1, "rgba(12,180,170,0.16)");
+  ctx.fillStyle = grad;
+  ctx.strokeStyle = "rgba(95,235,228,0.65)";
+  ctx.lineWidth = 1.5 * d;
+
+  // 胴体(肩広→腰の台形、背中から見た姿)
+  ctx.beginPath();
+  ctx.moveTo(cx - shoulderW / 2, shoulderY);
+  ctx.lineTo(cx + shoulderW / 2, shoulderY);
+  ctx.lineTo(cx + hipW / 2, hipY);
+  ctx.lineTo(cx - hipW / 2, hipY);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // ショーツ
+  ctx.beginPath();
+  roundRect(ctx, cx - hipW * 0.62, hipY - 2 * d, hipW * 1.24, kh * 0.14, 4 * d);
+  ctx.fill(); ctx.stroke();
+  // 頭
+  ctx.beginPath(); ctx.arc(cx, headY, headR, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+
+  // 腕(太いストロークで大きく水平に広げる)
+  ctx.strokeStyle = "rgba(31,224,216,0.38)";
+  ctx.lineWidth = kh * 0.06;
+  ctx.beginPath(); ctx.moveTo(cx - shoulderW / 2 + 2 * d, shoulderY + 3 * d);
+  ctx.quadraticCurveTo(cx - armSpan * 0.55, armY - kh * 0.02, cx - armSpan, armY);
+  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + shoulderW / 2 - 2 * d, shoulderY + 3 * d);
+  ctx.quadraticCurveTo(cx + armSpan * 0.55, armY - kh * 0.02, cx + armSpan, armY);
+  ctx.stroke();
+  // 開いた手のひら
+  ctx.fillStyle = "rgba(31,224,216,0.5)";
+  ctx.beginPath(); ctx.arc(cx - armSpan, armY, headR * 0.55, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + armSpan, armY, headR * 0.55, 0, Math.PI * 2); ctx.fill();
+
+  // 脚(軽く開いた構え)
+  ctx.strokeStyle = "rgba(31,224,216,0.35)";
+  ctx.lineWidth = kh * 0.065;
+  ctx.beginPath(); ctx.moveTo(cx - hipW * 0.35, hipY + kh * 0.12); ctx.lineTo(cx - kh * 0.11, baseY - 2 * d); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + hipW * 0.35, hipY + kh * 0.12); ctx.lineTo(cx + kh * 0.11, baseY - 2 * d); ctx.stroke();
+
+  // 背番号「1」
+  ctx.shadowBlur = 4 * d;
+  ctx.font = `700 ${kh * 0.17}px 'Rajdhani', sans-serif`;
   ctx.textAlign = "center";
-  ctx.font = `800 ${12 * d}px 'M PLUS 1', sans-serif`;
-  ctx.fillStyle = "#7BE9FF";
-  ctx.fillText("GK", cx, headY - headR - 8 * d);
+  ctx.fillStyle = "rgba(12,210,200,0.95)";
+  ctx.fillText("1", cx, shoulderY + (hipY - shoulderY) * 0.55);
   ctx.restore();
 }
 function drawAllParts(nowMs) {
@@ -2616,7 +2683,7 @@ function endGame() {
   vibrate([80, 60, 80]);
   hide(hud);
   comboBanner.classList.remove("show");
-  hide(flipBtn); hide(quitBtn);
+  hide(quitBtn);
 
   const rate = totalBalls > 0 ? Math.round((hits / totalBalls) * 100) : 0;
   document.querySelector("#screen-result .stat-box:nth-child(1) .s-label").textContent = gameMode === "TARGET" ? "的中数" : "成功数";
@@ -2710,7 +2777,7 @@ function backToHome() {
   phase = "start";
   balls = []; particles = []; popups = [];
   hide(hud); hide(positioningMsg); hide(countdownEl);
-  hide(flipBtn); hide(quitBtn);
+  hide(quitBtn);
   comboBanner.classList.remove("show");
   stopCamera();
   refreshHighScoreLine();
@@ -2743,7 +2810,7 @@ async function startGameFlow() {
   phase = "positioning";
   positioningStableSince = 0;
   show(positioningMsg);
-  show(flipBtn); show(quitBtn);
+  show(quitBtn);
 }
 
 /* ---------------- メインループ ---------------- */
@@ -2894,7 +2961,7 @@ $("replay-btn").addEventListener("click", async () => {
   positioningStableSince = 0;
   balls = []; particles = []; popups = [];
   show(positioningMsg);
-  show(flipBtn); show(quitBtn);
+  show(quitBtn);
 });
 $("home-btn").addEventListener("click", backToHome);
 $("replay-view-btn").addEventListener("click", openReplay);
@@ -2915,15 +2982,6 @@ $("share-btn").addEventListener("click", async () => {
 quitBtn.addEventListener("click", () => {
   if (phase === "playing" && freeMode) endGame();
   else backToHome();
-});
-flipBtn.addEventListener("click", async () => {
-  facingMode = facingMode === "environment" ? "user" : "environment";
-  try {
-    $("loading-text").textContent = "カメラを切り替えています…";
-    await startCamera();
-  } catch (e) {
-    console.error(e);
-  }
 });
 
 // 画面がバックグラウンドになったら一時停止扱い(タイマーだけ止める)
