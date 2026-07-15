@@ -197,30 +197,81 @@
   }
   .diff-card.selected .dc-dot { background: var(--cyan); box-shadow: 0 0 8px rgba(31,224,216,.8); }
 
-  /* ===== バーチャル背景（軽量 / 高精度） ===== */
+  /* ===== ステージ選択（軽量 / 高精度） ===== */
   .virtual-bg-option {
-    width: 100%; max-width: 420px;
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 9px 12px;
+    width: 100%; max-width: 480px;
+    display: flex; flex-direction: column; align-items: stretch; gap: 10px;
+    padding: 12px 14px;
     border: 1px solid rgba(31,224,216,.22);
-    border-radius: 12px;
+    border-radius: 14px;
     background: linear-gradient(135deg, rgba(31,224,216,.07), rgba(46,143,255,.035));
     text-align: left; user-select: none;
   }
-  .virtual-bg-copy { min-width: 0; flex: 1; }
-  .virtual-bg-title { display: block; font-weight: 800; font-size: 12.5px; color: var(--white); }
-  .virtual-bg-desc { display: block; margin-top: 2px; font-size: 9.5px; line-height: 1.35; color: var(--mute); }
-  .virtual-bg-controls { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; }
+  .virtual-bg-copy { min-width: 0; display: block; }
+  .virtual-bg-title { display: block; font-weight: 800; font-size: 13px; color: var(--white); }
+  .virtual-bg-desc { display: block; margin-top: 3px; font-size: 10px; line-height: 1.45; color: var(--mute); }
+  .stage-card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+  .stage-card {
+    border: 1px solid rgba(242,245,250,.12);
+    border-radius: 12px;
+    background: rgba(242,245,250,.035);
+    padding: 10px 10px 11px;
+    text-align: left;
+    cursor: pointer;
+    transition: transform .08s ease, border-color .12s ease, background .12s ease, box-shadow .12s ease;
+    min-height: 76px;
+  }
+  .stage-card:active { transform: scale(.98); }
+  .stage-card.selected {
+    border-color: rgba(31,224,216,.72);
+    background: linear-gradient(145deg, rgba(31,224,216,.12), rgba(46,143,255,.06));
+    box-shadow: 0 0 0 1px rgba(31,224,216,.12) inset, 0 8px 18px rgba(31,224,216,.10);
+  }
+  .stage-card-name {
+    display: flex; align-items: center; gap: 6px;
+    font-weight: 800; font-size: 12px; color: var(--white); line-height: 1.25;
+  }
+  .stage-card-tag {
+    flex: 0 0 auto;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(242,245,250,.07);
+    color: var(--mute);
+    font-family: var(--accent-font);
+    font-size: 9px; font-weight: 700; letter-spacing: .05em;
+  }
+  .stage-card.selected .stage-card-tag {
+    background: rgba(31,224,216,.18);
+    color: var(--cyan);
+  }
+  .stage-card-desc {
+    margin-top: 5px;
+    font-size: 9.5px;
+    line-height: 1.45;
+    color: var(--mute);
+  }
+  .virtual-bg-controls {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    flex-wrap: wrap;
+  }
+  .virtual-bg-quality-box {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 10px; font-weight: 700; color: var(--mute);
+  }
   .virtual-bg-quality {
-    max-width: 88px; height: 27px; padding: 0 6px;
+    min-width: 118px; height: 30px; padding: 0 8px;
     color: var(--white); background: rgba(7,9,15,.72);
-    border: 1px solid rgba(242,245,250,.18); border-radius: 7px;
-    font-family: var(--body-font); font-size: 10px; font-weight: 700;
+    border: 1px solid rgba(242,245,250,.18); border-radius: 8px;
+    font-family: var(--body-font); font-size: 11px; font-weight: 700;
   }
   .virtual-bg-quality:disabled { opacity: .38; }
-  #screen-start .virtual-bg-option { max-width: 480px; margin: 1px 0 2px; }
   .virtual-bg-state {
-    min-width: 31px; padding: 3px 6px;
+    min-width: 42px; padding: 4px 8px;
     border: 1px solid rgba(124,252,154,.38); border-radius: 999px;
     background: rgba(124,252,154,.10); color: #7CFC9A;
     font-family: var(--accent-font); font-size: 10px; font-weight: 700;
@@ -230,32 +281,14 @@
     border-color: rgba(242,245,250,.18); background: rgba(242,245,250,.05); color: var(--mute);
   }
   .virtual-bg-option.is-off { border-color: rgba(242,245,250,.12); background: rgba(242,245,250,.025); }
-  @media (max-width: 355px) {
-    .virtual-bg-option { align-items: flex-start; flex-direction: column; }
-    .virtual-bg-controls { width: 100%; justify-content: flex-end; }
-  }
-  .virtual-bg-toggle-wrap { position: relative; display: block; width: 46px; height: 25px; cursor: pointer; }
-  .virtual-bg-toggle-wrap input { position: absolute; opacity: 0; pointer-events: none; }
-  .virtual-bg-switch {
-    position: absolute; inset: 0;
-    border-radius: 999px; border: 1px solid rgba(242,245,250,.18);
-    background: rgba(242,245,250,.08);
-    transition: background .18s ease, border-color .18s ease;
-  }
-  .virtual-bg-switch::after {
-    content: ""; position: absolute; top: 3px; left: 3px;
-    width: 17px; height: 17px; border-radius: 50%;
-    background: #C8D0DC; box-shadow: 0 2px 6px rgba(0,0,0,.35);
-    transition: transform .18s ease, background .18s ease;
-  }
-  .virtual-bg-toggle-wrap input:checked + .virtual-bg-switch {
-    background: linear-gradient(120deg, rgba(31,224,216,.9), rgba(46,143,255,.9));
-    border-color: rgba(31,224,216,.8);
-  }
-  .virtual-bg-toggle-wrap input:checked + .virtual-bg-switch::after {
-    transform: translateX(21px); background: #FFFFFF;
-  }
   .virtual-bg-option:focus-within { outline: 2px solid rgba(31,224,216,.55); outline-offset: 2px; }
+  @media (min-width: 450px) {
+    .stage-card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (max-width: 355px) {
+    .stage-card-grid { grid-template-columns: 1fr; }
+    .virtual-bg-controls { align-items: flex-start; flex-direction: column; }
+  }
 
   /* ===== スコア履歴(ベスト5) ===== */
   .best5-box {
@@ -417,6 +450,18 @@
   }
   #quit-btn { left: 14px; }
   #quit-btn.hidden { display: none; }
+  #camera-switch-btn {
+    position: absolute; z-index: 16; right: 14px;
+    bottom: calc(env(safe-area-inset-bottom) + 16px);
+    min-width: 126px; background: var(--navy-glass);
+    border: 1px solid rgba(31,224,216,.45); color: var(--white);
+    font-family: var(--body-font); font-weight: 800; font-size: 12px;
+    border-radius: 999px; padding: 10px 14px; cursor: pointer;
+    backdrop-filter: blur(6px); box-shadow: 0 0 14px rgba(31,224,216,.12);
+  }
+  #camera-switch-btn:active { transform: translateY(1px); background: rgba(31,224,216,.12); }
+  #camera-switch-btn:disabled { opacity: .45; pointer-events: none; }
+  #camera-switch-btn.hidden { display: none; }
 
   /* ポジショニングガイド */
   #positioning-msg {
@@ -521,6 +566,7 @@
   <div id="countdown" class="hidden"><span id="countdown-num">3</span></div>
 
   <button id="quit-btn" class="hidden">やめる</button>
+  <button id="camera-switch-btn" class="hidden" aria-label="インカメラとアウトカメラを切り替える">🤳 インカメラへ</button>
 
   <!-- リプレイ再生オーバーレイ -->
   <div id="replay-overlay" class="screen hidden" style="z-index: 30;">
@@ -547,27 +593,42 @@
       </div>
     </div>
     <div class="virtual-bg-option" id="virtual-bg-home-option">
-      <label class="virtual-bg-copy" for="virtual-bg-toggle">
+      <div class="virtual-bg-copy">
         <span class="virtual-bg-title">🎬 ステージ</span>
-        <span class="virtual-bg-desc">プレイ画面の背景演出を選べます。ストリート、練習場、スタジアム、FINALスタジアムを切り替え可能です。</span>
-      </label>
-      <span class="virtual-bg-controls">
+        <span class="virtual-bg-desc">スマホでも見やすいカードから選べます。ステージ無し、ストリート、練習場、スタジアム、FINALスタジアムを切り替え可能です。</span>
+      </div>
+      <div class="stage-card-grid" id="stage-card-grid" aria-label="ステージを選択">
+        <button type="button" class="stage-card" data-stage="NONE" aria-pressed="false">
+          <span class="stage-card-name">🚫 ステージ無し <span class="stage-card-tag">OFF</span></span>
+          <span class="stage-card-desc">背景演出なし。最も軽く、カメラ映像をそのまま表示します。</span>
+        </button>
+        <button type="button" class="stage-card" data-stage="STREET" aria-pressed="false">
+          <span class="stage-card-name">🏙️ ストリート <span class="stage-card-tag">街中</span></span>
+          <span class="stage-card-desc">左右を建物に挟まれた路上ステージ。ストリートサッカー風です。</span>
+        </button>
+        <button type="button" class="stage-card" data-stage="TRAINING" aria-pressed="false">
+          <span class="stage-card-name">🏟️ 練習場 <span class="stage-card-tag">練習</span></span>
+          <span class="stage-card-desc">落ち着いたトレーニンググラウンド。日常練習に合う背景です。</span>
+        </button>
+        <button type="button" class="stage-card" data-stage="STADIUM" aria-pressed="false">
+          <span class="stage-card-name">🌟 スタジアム <span class="stage-card-tag">試合</span></span>
+          <span class="stage-card-desc">今作っている通常スタジアム。観客席つきの試合会場です。</span>
+        </button>
+        <button type="button" class="stage-card" data-stage="FINAL" aria-pressed="false">
+          <span class="stage-card-name">🏆 FINALスタジアム <span class="stage-card-tag">決勝</span></span>
+          <span class="stage-card-desc">ワールドカップ決勝イメージ。観客が多い特別な大舞台です。</span>
+        </button>
+      </div>
+      <div class="virtual-bg-controls">
         <span id="virtual-bg-state" class="virtual-bg-state" aria-live="polite">ON</span>
-        <select id="stage-theme-select" class="virtual-bg-quality" aria-label="ステージを選択">
-          <option value="STREET">ストリート</option>
-          <option value="TRAINING">練習場</option>
-          <option value="STADIUM">スタジアム</option>
-          <option value="FINAL">FINALスタジアム</option>
-        </select>
-        <select id="virtual-bg-quality" class="virtual-bg-quality" aria-label="ステージ背景の画質">
-          <option value="LITE">軽量（推奨）</option>
-          <option value="HIGH">高精度</option>
-        </select>
-        <label class="virtual-bg-toggle-wrap" for="virtual-bg-toggle" aria-label="ステージ背景を使用">
-          <input id="virtual-bg-toggle" type="checkbox" checked />
-          <span class="virtual-bg-switch" aria-hidden="true"></span>
+        <label class="virtual-bg-quality-box" for="virtual-bg-quality">
+          <span>画質</span>
+          <select id="virtual-bg-quality" class="virtual-bg-quality" aria-label="ステージ背景の画質">
+            <option value="LITE">軽量（推奨）</option>
+            <option value="HIGH">高精度</option>
+          </select>
         </label>
-      </span>
+      </div>
     </div>
     <!-- ===== アコーディオン インフォパネル ===== -->
     <div class="info-panels">
@@ -819,6 +880,7 @@ const comboBanner = $("combo-banner"), comboNum = $("combo-num");
 const positioningMsg = $("positioning-msg"), positioningPill = $("positioning-pill");
 const countdownEl = $("countdown"), countdownNum = $("countdown-num");
 const quitBtn = $("quit-btn");
+const cameraSwitchBtn = $("camera-switch-btn");
 const errorBox = $("error-box");
 
 /* ---------------- 状態 ---------------- */
@@ -842,6 +904,7 @@ let penaltyCount = 0;
 let faultCount = 0;
 let facingMode = "environment";
 let mirrored = false;
+let cameraSwitching = false;
 let poseLandmarker = null;
 let imageSegmenter = null;
 let stream = null;
@@ -864,9 +927,10 @@ let virtualBackgroundQuality = (() => {
 let stageTheme = (() => {
   try {
     const saved = localStorage.getItem("volleyshoot_stage_theme");
-    return ["STREET", "TRAINING", "STADIUM", "FINAL"].includes(saved) ? saved : "STADIUM";
+    return ["NONE", "STREET", "TRAINING", "STADIUM", "FINAL"].includes(saved) ? saved : "STADIUM";
   } catch { return "STADIUM"; }
 })();
+if (stageTheme === "NONE") virtualBackgroundEnabled = false;
 let virtualBackgroundReady = false;
 let virtualBackgroundLoadFailed = false;
 let virtualBackgroundMaskUsable = false;
@@ -1344,6 +1408,33 @@ async function startCamera() {
 function stopCamera() {
   if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
   resetVirtualBackgroundMask();
+}
+function updateCameraSwitchLabel() {
+  cameraSwitchBtn.textContent = facingMode === "user" ? "📷 アウトカメラへ" : "🤳 インカメラへ";
+}
+async function switchCamera() {
+  if (cameraSwitching || !(phase === "positioning" || phase === "countdown" || phase === "playing")) return;
+  cameraSwitching = true;
+  cameraSwitchBtn.disabled = true;
+  const previous = facingMode;
+  facingMode = previous === "user" ? "environment" : "user";
+  cameraSwitchBtn.textContent = "切替中…";
+  try {
+    await startCamera();
+    lastVideoTime = -1; poseSeenAt = 0; positioningStableSince = 0;
+    feet = { left: null, right: null }; prevFeet = { left: null, right: null };
+    bodyParts = {}; players = []; prevPlayersParts = [{}, {}];
+    latestVirtualPoses = []; latestVirtualPoseAt = 0;
+    resetVirtualBackgroundMask(); stadiumCacheValid = false; lastBackgroundRenderAt = 0;
+    playBeep(920, 0.08, 0.08);
+  } catch (err) {
+    console.warn("カメラ切替に失敗しました", err);
+    facingMode = previous;
+    try { await startCamera(); } catch {}
+    playBeep(260, 0.14, 0.10);
+  } finally {
+    cameraSwitching = false; cameraSwitchBtn.disabled = false; updateCameraSwitchLabel();
+  }
 }
 
 /* ---------------- 骨格検出モデル ---------------- */
@@ -3968,6 +4059,7 @@ function endGame() {
   hide(hud);
   comboBanner.classList.remove("show");
   hide(quitBtn);
+  hide(cameraSwitchBtn);
 
   const rate = totalBalls > 0 ? Math.round((hits / totalBalls) * 100) : 0;
   document.querySelector("#screen-result .stat-box:nth-child(1) .s-label").textContent = gameMode === "TARGET" ? "的中数" : "成功数";
@@ -4062,6 +4154,7 @@ function backToHome() {
   balls = []; particles = []; popups = [];
   hide(hud); hide(positioningMsg); hide(countdownEl);
   hide(quitBtn);
+  hide(cameraSwitchBtn);
   comboBanner.classList.remove("show");
   stopCamera();
   setVirtualBackgroundActive(false);
@@ -4105,6 +4198,8 @@ async function startGameFlow() {
   positioningStableSince = 0;
   show(positioningMsg);
   show(quitBtn);
+  updateCameraSwitchLabel();
+  show(cameraSwitchBtn);
 }
 
 /* ---------------- メインループ ---------------- */
@@ -4226,45 +4321,56 @@ function openDifficultyScreen(mode) {
   refreshHighScoreLine();
   setScreen("difficulty");
 }
-const virtualBgToggle = $("virtual-bg-toggle");
 const virtualBgQuality = $("virtual-bg-quality");
 const virtualBgState = $("virtual-bg-state");
 const virtualBgHomeOption = $("virtual-bg-home-option");
-const stageThemeSelect = $("stage-theme-select");
+const stageCards = Array.from(document.querySelectorAll(".stage-card"));
+function currentStageCardValue() {
+  return virtualBackgroundEnabled ? stageTheme : "NONE";
+}
 function syncVirtualBackgroundControls() {
-  virtualBgToggle.checked = virtualBackgroundEnabled;
+  const activeStage = currentStageCardValue();
   virtualBgQuality.value = virtualBackgroundQuality;
-  stageThemeSelect.value = stageTheme;
   virtualBgQuality.disabled = !virtualBackgroundEnabled;
-  stageThemeSelect.disabled = !virtualBackgroundEnabled;
   virtualBgState.textContent = virtualBackgroundEnabled ? "ON" : "OFF";
   virtualBgState.classList.toggle("off", !virtualBackgroundEnabled);
   virtualBgHomeOption.classList.toggle("is-off", !virtualBackgroundEnabled);
+  stageCards.forEach((card) => {
+    const selected = card.dataset.stage === activeStage;
+    card.classList.toggle("selected", selected);
+    card.setAttribute("aria-pressed", selected ? "true" : "false");
+  });
 }
-syncVirtualBackgroundControls();
-virtualBgToggle.addEventListener("change", () => {
-  virtualBackgroundEnabled = virtualBgToggle.checked;
-  try { localStorage.setItem("volleyshoot_virtual_background", virtualBackgroundEnabled ? "on" : "off"); } catch {}
+function applyStageSelection(selectedStage) {
+  const usingStage = selectedStage !== "NONE";
+  virtualBackgroundEnabled = usingStage;
+  stageTheme = usingStage ? selectedStage : "NONE";
+  try {
+    localStorage.setItem("volleyshoot_virtual_background", usingStage ? "on" : "off");
+    localStorage.setItem("volleyshoot_stage_theme", stageTheme);
+  } catch {}
   virtualBackgroundLoadFailed = false;
   resetVirtualBackgroundMask();
   stadiumCacheValid = false;
-  if (!virtualBackgroundEnabled) { releaseVirtualBackgroundModel(); stopStageAmbient(); }
-  else virtualBackgroundReady = virtualBackgroundQuality === "LITE";
-  syncVirtualBackgroundControls();
-  resizeCanvas();
-  initAudio();
-  playBeep(virtualBackgroundEnabled ? 920 : 480, 0.08, 0.09);
-});
-stageThemeSelect.addEventListener("change", () => {
-  stageTheme = ["STREET", "TRAINING", "STADIUM", "FINAL"].includes(stageThemeSelect.value) ? stageThemeSelect.value : "STADIUM";
-  try { localStorage.setItem("volleyshoot_stage_theme", stageTheme); } catch {}
-  stadiumCacheValid = false;
   lastBackgroundRenderAt = 0;
-  if (stageAmbientPlaying) { stopStageAmbient(); syncStageAmbient(phase === "positioning" || phase === "countdown" || phase === "playing"); }
+  if (!virtualBackgroundEnabled) {
+    releaseVirtualBackgroundModel();
+    stopStageAmbient();
+  } else {
+    virtualBackgroundReady = virtualBackgroundQuality === "LITE";
+    const stageActive = phase === "positioning" || phase === "countdown" || phase === "playing";
+    if (stageAmbientPlaying) stopStageAmbient();
+    syncStageAmbient(stageActive);
+  }
   syncVirtualBackgroundControls();
   resizeCanvas();
   initAudio();
-  playBeep(stageTheme === "FINAL" ? 1080 : 860, 0.08, 0.09);
+  const tone = !usingStage ? 480 : stageTheme === "FINAL" ? 1080 : 860;
+  playBeep(tone, 0.08, 0.09);
+}
+syncVirtualBackgroundControls();
+stageCards.forEach((card) => {
+  card.addEventListener("click", () => applyStageSelection(card.dataset.stage || "NONE"));
 });
 virtualBgQuality.addEventListener("change", () => {
   virtualBackgroundQuality = virtualBgQuality.value === "HIGH" ? "HIGH" : "LITE";
@@ -4325,6 +4431,8 @@ $("replay-btn").addEventListener("click", async () => {
   balls = []; particles = []; popups = [];
   show(positioningMsg);
   show(quitBtn);
+  updateCameraSwitchLabel();
+  show(cameraSwitchBtn);
 });
 $("home-btn").addEventListener("click", backToHome);
 $("replay-view-btn").addEventListener("click", openReplay);
@@ -4346,6 +4454,10 @@ quitBtn.addEventListener("click", () => {
   if (phase === "playing" && freeMode) endGame();
   else backToHome();
 });
+cameraSwitchBtn.addEventListener("click", async () => {
+  initAudio();
+  await switchCamera();
+});
 
 // 画面がバックグラウンドになったら一時停止扱い(タイマーだけ止める)
 document.addEventListener("visibilitychange", () => {
@@ -4354,6 +4466,7 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
+updateCameraSwitchLabel();
 refreshHighScoreLine();
 </script>
 </body>
